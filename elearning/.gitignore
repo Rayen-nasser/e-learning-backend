@@ -1,0 +1,39 @@
+# Django
+*.log
+*.pot
+*.pyc
+*.pyo
+__pycache__/
+db.sqlite3
+/static/
+# Ignore .env file for security reasons
+.env
+
+# VS Code settings
+.vscode/
+
+# Python virtual environment
+venv/
+env/
+
+# Local settings
+local_settings.py
+
+# macOS specific files
+.DS_Store
+
+# Windows specific files
+Thumbs.db
+
+# IDE specific files
+.idea/
+
+# JetBrains specific files
+*.iml
+
+# Python egg files
+*.egg
+*.egg-info/
+
+# Django migrations
+*/migrations/*
