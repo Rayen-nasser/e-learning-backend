@@ -1,6 +1,9 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 
+from core import models
+
+
 class CustomUserManagerTests(TestCase):
     def setUp(self):
         self.User = get_user_model()
@@ -66,3 +69,21 @@ class CustomUserManagerTests(TestCase):
             str(context.exception),
             "Superuser must have is_superuser=True."
         )
+
+    def test_create_course(self):
+        user = self.User.objects.create_user(
+            email='user@example.com',
+            username='testuser',
+            password='password123',
+            first_name='John',
+            last_name='Doe',
+            role='Instructor'
+        )
+        course = models.Course.objects.create(
+            title='Test Course',
+            description='This is a test course',
+            instructor=user,
+            price='10.00',
+            category="test category"
+        )
+        self.assertEqual(course.title, 'Test Course')
