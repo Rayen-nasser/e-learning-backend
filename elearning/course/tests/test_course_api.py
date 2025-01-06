@@ -6,6 +6,7 @@ from rest_framework import status
 from core.models import Course
 from course.serializers import CourseSerializer
 
+from django.middleware.csrf import get_token
 
 COURSE_URL = reverse('course:course-list')
 
@@ -78,6 +79,7 @@ class PrivateCourseApiTests(TestCase):
             role='Instructor'
         )
         self.client = APIClient()
+        self.client.defaults['HTTP_X_CSRFTOKEN'] = 'dummy_csrf_token'
         self.client.force_authenticate(user=self.user)
 
     def test_retrieve_courses(self):
@@ -198,4 +200,40 @@ class PrivateCourseApiTests(TestCase):
         # Ensure the course is deleted
         with self.assertRaises(Course.DoesNotExist):
             Course.objects.get(id=course.id)
-            
+
+    def test_course_description_sanitization(self):
+        """Test that course descriptions do not allow XSS attacks."""
+        malicious_description = '<script>alert("XSS")</script>'
+        course_data = {
+            'title': 'Secure Course',
+            'description': malicious_description,
+            'category': 'Test',
+            'price': 30.00,
+        }
+        response = self.client.post(COURSE_URL, course_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        created_course = Course.objects.first()
+        self.assertNotIn('<script>', created_course.description)
+
+    def test_sql_injection_in_course_creation(self):
+        """Test that SQL injection does not affect course creation."""
+        malicious_data = {
+            'title': 'Test Course',
+            'description': 'Test description',
+            'category': 'Test',
+            'price': 10.00,
+            'instructor': '1 OR 1=1 --',  # SQL injection attempt
+        }
+        response = self.client.post(COURSE_URL, malicious_data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Course.objects.count(), 0)  # Ensure no course is created
+
+    def test_rate_limiting(self):
+        """Test that rate limiting prevents brute-force attacks."""
+        # Try to hit the endpoint multiple times
+        for _ in range(1000):
+            response = self.client.post(COURSE_URL, {'title': 'Test', 'description': 'Rate limit test', 'category': 'Test', 'price': 10.00})
+
+        # The response should eventually be rate-limited
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
