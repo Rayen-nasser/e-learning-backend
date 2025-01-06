@@ -59,6 +59,14 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.AnonRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'user': '10/m',  # Allow 5 requests per minute for authenticated users
+        'anon': '10/m',  # Allow 5 requests per minute for anonymous users
+    },
 }
 
 # JWT settings

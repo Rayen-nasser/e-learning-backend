@@ -1,16 +1,41 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, serializers
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, Throttled
 from core.models import Course
 from .serializers import CourseSerializer
-from rest_framework.response import Response
+from django_ratelimit.decorators import ratelimit
+from django.utils.decorators import method_decorator
+import re
+import bleach
 
+def sanitize_course_description(description):
+    """
+    Sanitize course description to allow only safe HTML tags.
+    """
+    allowed_tags = ['b', 'i', 'u', 'a', 'p', 'br']
+    return bleach.clean(description, tags=allowed_tags, strip=True)
+
+def validate_sql_injection(value):
+    """
+    Validate the value for SQL injection attempts.
+    """
+    sql_patterns = r".*[;'].*|.*--.*|.*drop.*|.*select.*|.*union.*"
+    if re.match(sql_patterns, value.lower()):
+        raise serializers.ValidationError("Invalid characters in value")
+    return value
+
+@method_decorator(ratelimit(key='ip', rate='5/m', method='ALL'), name='dispatch')
 class CourseViewSet(viewsets.ModelViewSet):
     """
     ViewSet for listing, creating, updating, and deleting courses.
     """
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
+
+    def handle_no_permission(self):
+        if getattr(self, 'ratelimit_reached', False):
+            raise Throttled()
+        return super().handle_no_permission()
 
     def get_permissions(self):
         """
@@ -30,4 +55,17 @@ class CourseViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if getattr(user, 'role', None) != 'Instructor':
             raise PermissionDenied("Only instructors can create courses.")
-        serializer.save(instructor=user)
+
+        # Validate the instructor and title for SQL injection
+        instructor = self.request.data.get('instructor', '')
+        title = self.request.data.get('title', '')
+
+        validate_sql_injection(instructor)  # Validate instructor field
+        validate_sql_injection(title)       # Validate title field
+
+        # Sanitize course description before saving
+        description = self.request.data.get('description', '')
+        sanitized_description = sanitize_course_description(description)
+
+        # Save the course with the sanitized description and instructor
+        serializer.save(description=sanitized_description, instructor=user)
