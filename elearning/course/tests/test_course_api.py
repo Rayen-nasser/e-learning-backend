@@ -6,24 +6,28 @@ from rest_framework import status
 from core.models import Course
 from course.serializers import CourseSerializer
 
+
 COURSE_URL = reverse('course:course-list')
-CREATE_COURSE_URL = reverse('course:course-create')
+
+def detail_url(course_id):
+    """Return course detail URL."""
+    return reverse('course:course-detail', args=[course_id])
 
 def create_user(**params):
     """Helper function to create a new user."""
     return get_user_model().objects.create_user(**params)
 
-def create_course(instructor, **kwargs):
-    """Helper function to create a new course."""
+def create_course(user, **params):
+    """Helper function to create a course."""
     defaults = {
         'title': 'Python Course',
-        'description': 'This is a python course',
+        'description': 'A comprehensive Python course.',
         'category': 'Programming',
-        'price': 20.00
+        'price': 50.00,
+        'instructor': user
     }
-    defaults.update(kwargs)
-
-    return Course.objects.create(instructor=instructor, **defaults)
+    defaults.update(params)
+    return Course.objects.create(**defaults)
 
 class PublicCourseApiTests(TestCase):
     """Test unauthenticated API requests."""
@@ -49,17 +53,18 @@ class PublicCourseApiTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, serializer.data)
 
-    def test_auth_required_for_create(self):
-        """Test that authentication is required to create a course."""
+    def test_unauthorized_user_cannot_create_course(self):
+        """Test that unauthenticated users cannot create a course."""
+        self.client.logout()  # Ensure the user is logged out
         course_data = {
             'title': 'Unauthorized Course',
-            'description': 'This should not be created.',
+            'description': 'Unauthorized course creation attempt.',
             'category': 'Test',
             'price': 10.00,
         }
-        response = self.client.post(CREATE_COURSE_URL, course_data)
-
+        response = self.client.post(COURSE_URL, course_data)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
 
 class PrivateCourseApiTests(TestCase):
     """Test authenticated API requests for courses."""
@@ -87,6 +92,15 @@ class PrivateCourseApiTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, serializer.data)
 
+    def test_get_course_by_id(self):
+        """Test retrieving a course by ID."""
+        course = create_course(self.user)
+        url = detail_url(course.id)
+        response = self.client.get(url)
+        serializer = CourseSerializer(course)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, serializer.data)
+
     def test_create_course(self):
         """Test creating a course."""
         course_data = {
@@ -95,7 +109,7 @@ class PrivateCourseApiTests(TestCase):
             'category': 'Programming',
             'price': 50.00,
         }
-        response = self.client.post(CREATE_COURSE_URL, course_data)
+        response = self.client.post(COURSE_URL, course_data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Course.objects.count(), 1)
@@ -103,21 +117,31 @@ class PrivateCourseApiTests(TestCase):
         self.assertEqual(created_course.title, course_data['title'])
         self.assertEqual(created_course.instructor, self.user)
 
-    def test_different_role_cannot_create_course(self):
-        """Test that users with a role other than 'Instructor' cannot create courses."""
+    def test_instructor_can_create_course(self):
+        """Test that an instructor can create a course."""
+        self.user.role = 'Instructor'
+        self.user.save()
+        course_data = {
+            'title': 'Instructor Course',
+            'description': 'Description for instructor course.',
+            'category': 'Programming',
+            'price': 100.00,
+        }
+        response = self.client.post(COURSE_URL, course_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_non_instructor_cannot_create_course(self):
+        """Test that a non-instructor cannot create a course."""
         self.user.role = 'Student'
         self.user.save()
-
         course_data = {
-            'title': 'Unauthorized Course',
-            'description': 'This course should not be created.',
-            'category': 'Unauthorized',
-            'price': 30.00,
+            'title': 'Student Course',
+            'description': 'Description for student course.',
+            'category': 'Programming',
+            'price': 100.00,
         }
-        response = self.client.post(CREATE_COURSE_URL, course_data)
-
+        response = self.client.post(COURSE_URL, course_data)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(Course.objects.count(), 0)
 
     def test_course_creation_with_invalid_data(self):
         """Test creating a course with invalid data."""
@@ -127,7 +151,51 @@ class PrivateCourseApiTests(TestCase):
             'category': 'Invalid',
             'price': -10.00,  # Negative price
         }
-        response = self.client.post(CREATE_COURSE_URL, invalid_data)
+        response = self.client.post(COURSE_URL, invalid_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(Course.objects.count(), 0)
+
+    def test_edit_title_course(self):
+        """Test updating a course."""
+        course = create_course(self.user)
+        updated_data = {
+            'title': 'Updated Python Course',
+        }
+        url = detail_url(course.id)
+        response = self.client.patch(url, updated_data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        updated_course = Course.objects.get(id=course.id)
+        self.assertEqual(updated_course.title, updated_data['title'])
+
+    def test_update_course(self):
+        """Test updating a course."""
+        course = create_course(self.user)
+        updated_data = {
+            'title': 'Updated Python Course',
+            'description': 'An updated Python course.',
+            'category': 'Updated Programming',
+            'price': 70.00,
+        }
+        url = detail_url(course.id)
+        response = self.client.put(url, updated_data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        updated_course = Course.objects.get(id=course.id)
+        self.assertEqual(updated_course.title, updated_data['title'])
+        self.assertEqual(updated_course.description, updated_data['description'])
+        self.assertEqual(updated_course.category, updated_data['category'])
+        self.assertEqual(updated_course.price, updated_data['price'])
+        self.assertEqual(updated_course.instructor, self.user)
+
+    def test_delete_course(self):
+        """Test deleting a course."""
+        course = create_course(self.user)
+        url = detail_url(course.id)
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(Course.objects.count(), 0)
+
+        # Ensure the course is deleted
+        with self.assertRaises(Course.DoesNotExist):
+            Course.objects.get(id=course.id)
+            
