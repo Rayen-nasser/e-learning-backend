@@ -1,19 +1,16 @@
-from rest_framework import generics, viewsets
+from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import PermissionDenied
 from core.models import Course
 from .serializers import CourseSerializer
 from rest_framework.response import Response
 
-
-class CourseViewSet(viewsets.ViewSet):
+class CourseViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for listing courses with public access.
+    ViewSet for listing, creating, updating, and deleting courses.
     """
-    def list(self, request):
-        courses = Course.objects.all()  # Fetch queryset dynamically
-        serializer = CourseSerializer(courses, many=True)
-        return Response(serializer.data)
+    queryset = Course.objects.all()
+    serializer_class = CourseSerializer
 
     def get_permissions(self):
         """
@@ -21,23 +18,16 @@ class CourseViewSet(viewsets.ViewSet):
         """
         if self.action == 'list':
             return [AllowAny()]  # Allow everyone to list courses
-        return [IsAuthenticated()]  # Require authentication for other actions
-
-
-class CourseCreateView(generics.CreateAPIView):
-    """
-    CreateAPIView for creating a new course.
-    Only users with the role of 'Instructor' can create a course.
-    """
-    serializer_class = CourseSerializer
-    permission_classes = [IsAuthenticated]
+        if self.action in ['create', 'update', 'destroy']:
+            return [IsAuthenticated()]  # Require authentication for other actions
+        return super().get_permissions()
 
     def perform_create(self, serializer):
         """
         Perform the save operation for creating a course.
+        Only instructors can create courses.
         """
         user = self.request.user
-        # Safely check if the user is an instructor
         if getattr(user, 'role', None) != 'Instructor':
             raise PermissionDenied("Only instructors can create courses.")
         serializer.save(instructor=user)

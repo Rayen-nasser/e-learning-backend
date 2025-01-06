@@ -1,9 +1,14 @@
-from django.urls import path
-from .views import CourseViewSet, CourseCreateView
+from django.urls import path, include
+from .views import CourseViewSet
+from rest_framework.routers import DefaultRouter
 
 app_name = 'course'
 
+# Use DefaultRouter to generate the routes
+router = DefaultRouter()
+router.register(r'courses', CourseViewSet, basename='course')
+
+# Include the router-generated routes
 urlpatterns = [
-    path('courses/', CourseViewSet.as_view({'get': 'list'}), name='course-list'),
-    path('courses/create/', CourseCreateView.as_view(), name='course-create'),
+    path('', include(router.urls)),
 ]
