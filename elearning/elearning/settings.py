@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/5.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
+import sys
 import environ
 
 # Initialize environ
@@ -45,6 +46,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework_simplejwt.token_blacklist',
     'rest_framework',
     'django_filters',
     'core',
@@ -64,8 +66,8 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.AnonRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'user': '10/m',  # Allow 5 requests per minute for authenticated users
-        'anon': '10/m',  # Allow 5 requests per minute for anonymous users
+        'user': '50/m',  # Allow 5 requests per minute for authenticated users
+        'anon': '50/m',  # Allow 5 requests per minute for anonymous users
     },
 }
 
@@ -75,8 +77,8 @@ from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': False,
-    'BLACKLIST_AFTER_ROTATION': False,
+    'BLACKLIST_AFTER_ROTATION': True,  # Enables blacklisting of refresh tokens
+    'ROTATE_REFRESH_TOKENS': True,     # Optional: Enables rotating refresh tokens
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
     'VERIFYING_KEY': None,
