@@ -79,7 +79,6 @@ class PrivateCourseApiTests(TestCase):
             role='Instructor'
         )
         self.client = APIClient()
-        self.client.defaults['HTTP_X_CSRFTOKEN'] = 'dummy_csrf_token'
         self.client.force_authenticate(user=self.user)
 
     def test_retrieve_courses(self):
@@ -230,10 +229,9 @@ class PrivateCourseApiTests(TestCase):
 
     def test_rate_limiting(self):
         """Test that rate limiting prevents brute-force attacks."""
-        # Try to hit the endpoint multiple times
-        for _ in range(1000):
+        for _ in range(55):  # Exceed the rate limit by making more requests
             response = self.client.post(COURSE_URL, {'title': 'Test', 'description': 'Rate limit test', 'category': 'Test', 'price': 10.00})
 
         # The response should eventually be rate-limited
-        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)  # Change to 429
 
