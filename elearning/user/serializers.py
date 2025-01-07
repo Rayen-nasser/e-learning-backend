@@ -1,3 +1,4 @@
+from django.forms import ValidationError
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth import authenticate
@@ -10,18 +11,28 @@ User = get_user_model()
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'first_name', 'last_name', 'role']  # Add the missing comma here
+        fields = ['username', 'email', 'password', 'first_name', 'last_name', 'role']
         extra_kwargs = {
             'password': {'write_only': True},
         }
 
     def validate_password(self, value):
-        # Use Django's built-in password validation
-        validate_password(value)
+        try:
+            # Validate the password using Django's built-in password validation
+            validate_password(value)
+        except ValidationError as e:
+            # If validation fails, raise a serializers.ValidationError with the appropriate message
+            raise serializers.ValidationError({"password": ", ".join(e.messages)})
+        return value
+
+    def validate_role(self, value):
+        valid_roles = ['Student', 'Admin', 'Instructor']
+        if value not in valid_roles:
+            raise serializers.ValidationError("Invalid role")
         return value
 
     def create(self, validated_data):
-        # Create a user instance with validated data
+        # Create user instance with validated data
         user = User.objects.create_user(**validated_data)
         return user
 
@@ -51,3 +62,19 @@ class LoginSerializer(serializers.Serializer):
 
         data['user'] = user
         return data
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'first_name', 'last_name']  # Exclude 'role' if not updatable
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True)
+
+    def validate_new_password(self, value):
+        # Ensure the new password is valid
+        validate_password(value)
+        return value

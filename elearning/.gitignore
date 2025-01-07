@@ -37,3 +37,6 @@ Thumbs.db
 
 # Django migrations
 */migrations/*
+
+.vscode/
+plan.md
