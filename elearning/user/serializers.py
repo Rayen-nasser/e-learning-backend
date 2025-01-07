@@ -78,3 +78,9 @@ class ChangePasswordSerializer(serializers.Serializer):
         # Ensure the new password is valid
         validate_password(value)
         return value
+
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField(
+        required=True,
+        help_text="The refresh token to blacklist during logout."
+    )

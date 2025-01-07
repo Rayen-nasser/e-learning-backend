@@ -5,17 +5,23 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
-from .serializers import ChangePasswordSerializer, UserSerializer, RegisterSerializer, LoginSerializer
+from .serializers import ChangePasswordSerializer, LogoutSerializer, UserSerializer, RegisterSerializer, LoginSerializer
 from django.contrib.auth import get_user_model
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from django_ratelimit.decorators import ratelimit
+from drf_spectacular.utils import extend_schema, OpenApiExample
 
 
 User = get_user_model()
 
 
 # LoginView for JWT Authentication
+@extend_schema(
+    summary="User Login",
+    description="Authenticate a user and return access and refresh tokens.",
+    tags=["Authentication"]
+)
 @method_decorator(ratelimit(key='ip', rate='5/m', method='ALL'), name='dispatch')
 class LoginView(TokenObtainPairView):
     serializer_class = LoginSerializer
@@ -49,6 +55,32 @@ class LoginView(TokenObtainPairView):
 
 
 # RegisterView for User Registration
+@extend_schema(
+    summary="User Registration",
+    description="Create a new user account.",
+    examples=[
+        OpenApiExample(
+            "Successful Registration",
+            value={
+                'status': 'success',
+                'message': 'User registered successfully.',
+                'user': {
+                    'id': 1,
+                    'username': 'testuser',
+                    'email': 'test@example.com',
+                    'first_name': 'John',
+                    'last_name': 'Doe',
+                    'role': 'User'
+                },
+                'tokens': {
+                    'refresh': '...',
+                    'access': '...'
+                }
+            }
+        )
+    ],
+    tags=["Authentication"]
+)
 @method_decorator(ratelimit(key='ip', rate='5/m', method='ALL'), name='dispatch')
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
@@ -81,8 +113,16 @@ class RegisterView(generics.CreateAPIView):
             'errors': serializer.errors,
         }, status=status.HTTP_400_BAD_REQUEST)
 
-
 # Profile View (GET & PUT & DELETE & PATCH)
+@extend_schema(
+    examples=[
+        OpenApiExample(
+            "Successful Response",
+            value={"id": 1, "username": "user123", "email": "user@example.com"}
+        )
+    ],
+    tags=["User"]
+)
 class ProfileView(generics.RetrieveUpdateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -105,6 +145,16 @@ class ProfileView(generics.RetrieveUpdateAPIView):
 
 
 # Change Password View
+@extend_schema(
+    summary="Change Password",
+    description="Allow authenticated users to change their password.",
+    request=ChangePasswordSerializer,
+    responses={
+        200: {"description": "Password changed successfully."},
+        400: {"description": "Validation error."},
+    },
+    tags=["User"],
+)
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -132,33 +182,45 @@ class ChangePasswordView(APIView):
 
 
 # Logout View
+@extend_schema(
+    summary="User Logout",
+    description="Blacklists the provided refresh token to log out the user.",
+    request=LogoutSerializer,
+    responses={
+        205: {"description": "Successfully logged out."},
+        400: {"description": "Invalid or missing refresh token."},
+    },
+    tags=["Authentication"],
+)
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = LogoutSerializer
 
     def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        refresh_token = serializer.validated_data.get("refresh")
         try:
-            refresh_token = request.data.get("refresh")
-
-            if not refresh_token:
-                return Response({
-                    "detail": "Refresh token is required to log out."
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            # Decode and blacklist the refresh token
             token = RefreshToken(refresh_token)
-            token.blacklist()  # Blacklist the token
+            token.blacklist()
 
-            return Response({
-                "detail": "Successfully logged out."
-            }, status=status.HTTP_205_RESET_CONTENT)
-
+            return Response(
+                {"detail": "Successfully logged out."},
+                status=status.HTTP_205_RESET_CONTENT,
+            )
         except TokenError:
-            return Response({
-                "detail": "Invalid token or token has already been blacklisted."
-            }, status=status.HTTP_400_BAD_REQUEST)
-
+            return Response(
+                {"detail": "Invalid or already blacklisted token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 # List Users - Only Admins
+@extend_schema(
+    summary="List Users",
+    description="Retrieve a list of all users. Only accessible to admins.",
+    tags=["Admin"]
+)
 class UserListView(generics.ListAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -173,6 +235,11 @@ class UserListView(generics.ListAPIView):
 
 
 # User Detail View
+@extend_schema(
+    summary="User Details",
+    description="Retrieve details of a specific user by ID.",
+    tags=["Admin"]
+)
 class UserDetailView(generics.RetrieveAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer

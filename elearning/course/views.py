@@ -7,6 +7,8 @@ from django_ratelimit.decorators import ratelimit
 from django.utils.decorators import method_decorator
 import re
 import bleach
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample
+
 
 def sanitize_course_description(description):
     """
@@ -24,6 +26,64 @@ def validate_sql_injection(value):
         raise serializers.ValidationError("Invalid characters in value")
     return value
 
+
+@extend_schema_view(
+    list=extend_schema(
+        description="Retrieve a list of all available courses.",
+        parameters=[
+            OpenApiParameter(name='search', type=str, description="Search for courses by title."),
+        ],
+        responses={200: CourseSerializer(many=True)},
+        examples=[
+            OpenApiExample(
+                "Sample Course List",
+                value=[
+                    {
+                        "id": 1,
+                        "title": "Python for Beginners",
+                        "description": "A comprehensive course for Python programming.",
+                        "instructor": "John Doe"
+                    },
+                    {
+                        "id": 2,
+                        "title": "Advanced Django",
+                        "description": "Master Django with real-world projects.",
+                        "instructor": "Jane Smith"
+                    }
+                ],
+            )
+        ],
+        tags=["Course"],  # Tags applied here
+    ),
+    retrieve=extend_schema(
+        description="Retrieve detailed information about a specific course.",
+        responses={200: CourseSerializer},
+        tags=["Course"],  # Tags applied here
+    ),
+    create=extend_schema(
+        description="Create a new course. Only instructors are allowed to create courses.",
+        request=CourseSerializer,
+        responses={201: CourseSerializer},
+        tags=["Course"],  # Tags applied here
+    ),
+    update=extend_schema(
+        description="Update an existing course. Only the instructor who created the course can update it.",
+        request=CourseSerializer,
+        responses={200: CourseSerializer},
+        tags=["Course"],  # Tags applied here
+    ),
+    partial_update=extend_schema(
+        description="Partially update an existing course. Only the instructor who created the course can update it.",
+        request=CourseSerializer,
+        responses={200: CourseSerializer},
+        tags=["Course"],
+    ),
+    destroy=extend_schema(
+        description="Delete a course. Only the instructor who created the course can delete it.",
+        responses={204: None},
+        tags=["Course"],  # Tags applied here
+    ),
+)
 @method_decorator(ratelimit(key='ip', rate='5/m', method='ALL'), name='dispatch')
 class CourseViewSet(viewsets.ModelViewSet):
     """
