@@ -3,6 +3,7 @@ from django.db import models
 from django.conf import settings
 
 from django.contrib.auth.models import BaseUserManager
+from django.core.validators import FileExtensionValidator
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, username, password=None, **extra_fields):
@@ -79,3 +80,24 @@ class Course(models.Model):
 
     def __str__(self):
         return self.title
+
+class Lesson(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='lessons')
+
+    def __str__(self):
+        return self.title
+
+
+class LessonFile(models.Model):
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='files')
+    file = models.FileField(upload_to='lesson_files/', validators=[
+        FileExtensionValidator(
+            allowed_extensions=['pdf', 'doc', 'docx', 'ppt', 'pptx', 'mp4', 'jpg', 'png', 'zip']
+        )
+    ])
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"File for {self.lesson.title}"
