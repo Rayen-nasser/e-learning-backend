@@ -87,3 +87,54 @@ class CustomUserManagerTests(TestCase):
             category="test category"
         )
         self.assertEqual(course.title, 'Test Course')
+
+    def test_create_lesson(self):
+        user = self.User.objects.create_user(
+            email='user@example.com',
+            username='testuser',
+            password='password123',
+            first_name='John',
+            last_name='Doe',
+            role='Instructor'
+        )
+        course = models.Course.objects.create(
+            title='Test Course',
+            description='This is a test course',
+            instructor=user,
+            price='10.00',
+            category="test category"
+        )
+        lesson = models.Lesson.objects.create(
+            title='Test Lesson',
+            description='This is a test lesson',
+            course=course,
+        )
+        self.assertEqual(lesson.title, 'Test Lesson')
+
+    def test_create_lesson_file(self):
+        user = self.User.objects.create_user(
+            email='user@example.com',
+            username='testuser',
+            password='password123',
+            first_name='John',
+            last_name='Doe',
+            role='Instructor'
+        )
+        course = models.Course.objects.create(
+            title='Test Course',
+            description='This is a test course',
+            instructor=user,
+            price='10.00',
+            category="test category"
+        )
+        lesson = models.Lesson.objects.create(
+            title='Test Lesson',
+            description='This is a test lesson',
+            course=course,
+        )
+        lesson_file = models.LessonFile.objects.create(
+            lesson=lesson,
+            file='lesson_files/test_file.pdf'
+        )
+        self.assertEqual(lesson_file.lesson, lesson)
+        self.assertEqual(lesson_file.file, 'lesson_files/test_file.pdf')
