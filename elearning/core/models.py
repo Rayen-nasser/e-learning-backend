@@ -1,3 +1,6 @@
+import datetime
+import os
+from uuid import uuid4
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.conf import settings
@@ -90,12 +93,22 @@ class Lesson(models.Model):
         return self.title
 
 
+# Custom file path function to organize files by course and lesson
+def lesson_file_path(instance, filename):
+    # Organize by course and lesson title
+    course_title = instance.lesson.course.title.replace(" ", "_")  # Replace spaces with underscores for file names
+    lesson_title = instance.lesson.title.replace(" ", "_")
+
+    # Use a unique identifier for the file to avoid name collisions
+    unique_name = f"{uuid4()}_{filename}"
+
+    # Return the path in the format: lesson_files/{course_title}/{lesson_title}/{unique_name}
+    return os.path.join('lesson_files', course_title, lesson_title, unique_name)
+
 class LessonFile(models.Model):
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='files')
-    file = models.FileField(upload_to='lesson_files/', validators=[
-        FileExtensionValidator(
-            allowed_extensions=['pdf', 'doc', 'docx', 'ppt', 'pptx', 'mp4', 'jpg', 'png', 'zip']
-        )
+    file = models.FileField(upload_to=lesson_file_path, validators=[
+        FileExtensionValidator(allowed_extensions=['pdf', 'doc', 'docx', 'ppt', 'pptx', 'mp4', 'jpg', 'jpeg', 'png', 'zip'])
     ])
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
