@@ -6,8 +6,6 @@ from rest_framework import status
 from core.models import Course
 from course.serializers import CourseSerializer
 
-from django.middleware.csrf import get_token
-
 COURSE_URL = reverse('course:course-list')
 
 def detail_url(course_id):
