@@ -88,6 +88,8 @@ class Lesson(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='lessons')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.title
@@ -108,7 +110,7 @@ def lesson_file_path(instance, filename):
 class LessonFile(models.Model):
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='files')
     file = models.FileField(upload_to=lesson_file_path, validators=[
-        FileExtensionValidator(allowed_extensions=['pdf', 'doc', 'docx', 'ppt', 'pptx', 'mp4', 'jpg', 'jpeg', 'png', 'zip'])
+        FileExtensionValidator(allowed_extensions=['pdf', 'doc', 'docx', 'ppt', 'pptx', 'mp4', 'jpg', 'jpeg', 'png', 'txt','zip'])
     ])
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
