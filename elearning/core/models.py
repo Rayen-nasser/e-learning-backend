@@ -116,3 +116,39 @@ class LessonFile(models.Model):
 
     def __str__(self):
         return f"File for {self.lesson.title}"
+
+class Quiz(models.Model):
+    title = models.CharField(max_length=255)
+    lesson = models.ForeignKey('Lesson', on_delete=models.CASCADE, related_name='quizzes')
+    description = models.TextField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    time_limit = models.DurationField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.title
+
+class Question(models.Model):
+    QUESTION_TYPES = [
+        ('multiple_choice', 'Multiple Choice'),  # User selects one correct option from multiple choices.
+        ('true_false', 'True/False'),            # User decides if a statement is true or false.
+        ('short_answer', 'Short Answer'),        # User provides a brief text answer.
+        ('fill_in_the_blank', 'Fill in the Blank'), # User completes a sentence or statement with the correct word(s).
+    ]
+
+    quiz = models.ForeignKey('Quiz', on_delete=models.CASCADE, related_name='questions')
+    question_text = models.TextField()
+    options = models.JSONField()
+    correct_option = models.IntegerField()
+    points = models.PositiveIntegerField(default=1)
+    question_type = models.CharField(
+        max_length=50,
+        choices=QUESTION_TYPES,
+        default='multiple_choice',
+        help_text="Type of the question (e.g., Multiple Choice, True/False, etc.)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.question_text
