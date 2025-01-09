@@ -1,6 +1,7 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from core import models
+from datetime import timedelta
 
 
 class CustomUserManagerTests(TestCase):
@@ -114,7 +115,7 @@ class QuizAndQuestionTests(TestCase):
             title='Test Quiz',
             description='This is a test quiz',
             lesson=self.lesson,
-            time_limit=30,
+            time_limit=timedelta(hours=1, minutes=30),
             is_active=False,
         )
 
@@ -122,14 +123,14 @@ class QuizAndQuestionTests(TestCase):
         self.assertEqual(self.quiz.title, 'Test Quiz')
         self.assertEqual(self.quiz.description, 'This is a test quiz')
         self.assertEqual(self.quiz.lesson, self.lesson)
-        self.assertEqual(self.quiz.time_limit, 30)
+        self.assertEqual(self.quiz.time_limit, timedelta(hours=1, minutes=30))
         self.assertFalse(self.quiz.is_active)
 
     def test_create_question(self):
         question = models.Question.objects.create(
             question_text='This is a test question',
             quiz=self.quiz,
-            type='multiple_choice',
+            question_type='multiple_choice',
             options={
                 'option1': 'True',
                 'option2': 'False',
