@@ -25,10 +25,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r elearning/requirements.txt  # Fixed the file path to use forward slash
+          pip install -r elearning/requirements.txt  # Adjusted path to requirements.txt
 
       # Step 4: Run Tests
       - name: Run Tests
         run: |
+          cd elearning  # Change to the directory containing manage.py
           python manage.py wait_for_db  # Ensure the DB is ready if you're using this command
           python manage.py test
