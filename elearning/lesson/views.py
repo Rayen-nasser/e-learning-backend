@@ -2,16 +2,16 @@ from rest_framework import viewsets, permissions, serializers, filters
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
-from core.models import Lesson, LessonFile
+from core.models import Course, Lesson, LessonFile
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample
 from .serializers import LessonSerializer, LessonFileSerializer
+from rest_framework.permissions import IsAuthenticated
 
 
 @extend_schema_view(
     list=extend_schema(
         description="Retrieve a list of lessons for a course. Optionally filter by course ID or search by title/description.",
         parameters=[
-            OpenApiParameter(name='course', type=int, description="Filter lessons by course ID."),
             OpenApiParameter(name='search', type=str, description="Search lessons by title or description."),
         ],
         responses={200: LessonSerializer(many=True)},
@@ -54,17 +54,26 @@ class LessonViewSet(viewsets.ModelViewSet):
     filterset_fields = ['course']
     search_fields = ['title', 'description']
 
+    def get_queryset(self):
+        course_pk = self.kwargs.get('course_pk')
+        if not course_pk:
+            return Lesson.objects.none()
+        return self.queryset.filter(course_id=course_pk)
+
+
     def perform_create(self, serializer):
-        course = serializer.validated_data['course']
+        course_id = self.kwargs.get('course_pk')
+        course = Course.objects.get(id=course_id)
         if course.instructor != self.request.user:
             raise PermissionDenied("You do not have permission to create a lesson for this course.")
         serializer.save()
 
     def perform_update(self, serializer):
-        course = serializer.validated_data.get('course', serializer.instance.course)
-        if course.instructor != self.request.user:
+        lesson = self.get_object()
+        if lesson.course.instructor != self.request.user:
             raise PermissionDenied("You do not have permission to edit this lesson.")
         serializer.save()
+
 
     def perform_destroy(self, instance):
         if instance.course.instructor != self.request.user:
@@ -75,11 +84,19 @@ class LessonViewSet(viewsets.ModelViewSet):
 @extend_schema_view(
     list=extend_schema(
         description="Retrieve a list of lesson files. Only files for lessons owned by the authenticated user will be shown.",
+        parameters=[
+            OpenApiParameter(name='course_pk', type=int, location='path', description="The ID of the course to which the lesson belongs."),
+            OpenApiParameter(name='lesson_pk', type=int, location='path', description="The ID of the lesson the file belongs to."),
+        ],
         responses={200: LessonFileSerializer(many=True)},
         tags=["LessonFile"],
     ),
     retrieve=extend_schema(
         description="Retrieve details of a specific lesson file.",
+        parameters=[
+            OpenApiParameter(name='course_pk', type=int, location='path', description="The ID of the course to which the lesson belongs."),
+            OpenApiParameter(name='lesson_pk', type=int, location='path', description="The ID of the lesson the file belongs to."),
+        ],
         responses={200: LessonFileSerializer},
         tags=["LessonFile"],
     ),
@@ -109,27 +126,44 @@ class LessonViewSet(viewsets.ModelViewSet):
 )
 class LessonFileViewSet(viewsets.ModelViewSet):
     queryset = LessonFile.objects.all()
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
     serializer_class = LessonFileSerializer
     parser_classes = [MultiPartParser, FormParser]
 
     def get_queryset(self):
         user = self.request.user
-        return LessonFile.objects.filter(lesson__course__instructor=user)
+        lesson_pk = self.kwargs.get('lesson_pk')
+        if lesson_pk:
+            return LessonFile.objects.filter(lesson__id=lesson_pk, lesson__course__instructor=user)
+        return LessonFile.objects.none()
 
     def perform_create(self, serializer):
-        lesson = serializer.validated_data.get('lesson')
-        if not lesson:
-            raise serializers.ValidationError("Lesson is required.")
+        lesson_pk = self.kwargs.get('lesson_pk')
+        try:
+            lesson = Lesson.objects.get(id=lesson_pk)
+        except Lesson.DoesNotExist:
+            raise serializers.ValidationError("Lesson does not exist.")
+
         if lesson.course.instructor != self.request.user:
             raise PermissionDenied("You are not authorized to upload files for this lesson.")
-        serializer.save()
+
+        # Log for debugging purposes
+        print(f"User: {self.request.user}, Lesson: {lesson}, Course: {lesson.course}")
+
+        serializer.save(lesson=lesson)
+
 
     def perform_update(self, serializer):
-        lesson = serializer.validated_data.get('lesson', serializer.instance.lesson)
+        lesson_pk = self.kwargs.get('lesson_pk')
+        try:
+            lesson = Lesson.objects.get(id=lesson_pk)
+        except Lesson.DoesNotExist:
+            raise serializers.ValidationError("Lesson does not exist.")
+
         if lesson.course.instructor != self.request.user:
             raise PermissionDenied("You are not authorized to modify files for this lesson.")
-        serializer.save()
+
+        serializer.save(lesson=lesson)
 
     def perform_destroy(self, instance):
         if instance.lesson.course.instructor != self.request.user:

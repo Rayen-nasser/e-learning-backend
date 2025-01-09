@@ -11,13 +11,6 @@ from unittest.mock import MagicMock
 from datetime import timedelta
 from django.utils import timezone
 
-LESSON_URL = reverse('lessons:lesson-list')
-
-def detail_url(lesson_id):
-    return reverse('lessons:lesson-detail', args=[lesson_id])
-
-def upload_url(lesson_id):
-    return reverse('lessons:lesson-file-detail', args=[lesson_id])
 
 def create_user(**params):
     """Helper function to create users."""
@@ -31,6 +24,23 @@ def create_user(**params):
     }
     defaults.update(params)
     return get_user_model().objects.create_user(**defaults)
+
+def get_lesson_list_url(course_id):
+    """Helper function to get the nested lesson list URL."""
+    return reverse('course:course-lessons-list', args=[course_id])
+
+def get_lesson_detail_url(course_id, lesson_id):
+    """Helper function to get the nested lesson detail URL."""
+    return reverse('course:course-lessons-detail', args=[course_id, lesson_id])
+
+def get_lesson_file_list_url(course_id, lesson_id):
+    """Helper function to get the nested lesson file list URL."""
+    return reverse('course:lesson-lesson-files-list', args=[course_id, lesson_id])
+
+def get_lesson_file_detail_url(course_id, lesson_id, file_id):
+    """Helper function to get the nested lesson file detail URL."""
+    return reverse('course:lesson-lesson-files-detail', args=[course_id, lesson_id, file_id])
+
 
 class PublicLessonApiTests(TestCase):
     """Test unauthenticated lesson API access."""
@@ -49,10 +59,11 @@ class PublicLessonApiTests(TestCase):
             price=99.99,
             category='Test Category'
         )
+        self.LESSON_URL = get_lesson_list_url(self.course.id)
 
     def test_auth_required(self):
         """Test that authentication is required."""
-        response = self.client.get(LESSON_URL)
+        response = self.client.get(self.LESSON_URL)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_create_lesson_unauthorized(self):
@@ -62,7 +73,7 @@ class PublicLessonApiTests(TestCase):
             'description': 'Test Description',
             'course': self.course.id
         }
-        response = self.client.post(LESSON_URL, payload)
+        response = self.client.post(self.LESSON_URL, payload)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 class PrivateLessonApiTests(TestCase):
@@ -88,6 +99,7 @@ class PrivateLessonApiTests(TestCase):
             price=99.99,
             category=self.category
         )
+        self.LESSON_URL = get_lesson_list_url(self.course.id)
         self.client.force_authenticate(self.instructor)
 
     def test_list_lessons(self):
@@ -96,7 +108,8 @@ class PrivateLessonApiTests(TestCase):
         Lesson.objects.create(title='Lesson 1', description='Desc 1', course=self.course)
         Lesson.objects.create(title='Lesson 2', description='Desc 2', course=self.course)
 
-        response = self.client.get(LESSON_URL)
+        response = self.client.get(self.LESSON_URL)
+        response = self.client.get(self.LESSON_URL)
         lessons = Lesson.objects.all().order_by('-created_at')
         serializer = LessonSerializer(lessons, many=True)
 
@@ -104,8 +117,9 @@ class PrivateLessonApiTests(TestCase):
         self.assertEqual(len(response.data), 2)
         self.assertEqual(
             [item['id'] for item in response.data],
-            [item['id'] for item in serializer.data]
+            [lesson.id for lesson in lessons]
         )
+
 
     def test_create_lesson_success(self):
         """Test creating a lesson with valid data."""
@@ -114,7 +128,7 @@ class PrivateLessonApiTests(TestCase):
             'description': 'New Description',
             'course': self.course.id,
         }
-        response = self.client.post(LESSON_URL, payload)
+        response = self.client.post(self.LESSON_URL, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         lesson = Lesson.objects.get(id=response.data['id'])
         for key in payload:
@@ -130,7 +144,7 @@ class PrivateLessonApiTests(TestCase):
             'description': '',
             'course': self.course.id
         }
-        response = self.client.post(LESSON_URL, payload)
+        response = self.client.post(self.LESSON_URL, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_partial_update_lesson(self):
@@ -141,7 +155,7 @@ class PrivateLessonApiTests(TestCase):
             course=self.course
         )
         payload = {'title': 'New Title'}
-        url = detail_url(lesson.id)
+        url = get_lesson_detail_url(self.course.id, lesson.id)
         response = self.client.patch(url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -161,7 +175,7 @@ class PrivateLessonApiTests(TestCase):
             'description': 'New Description',
             'course': self.course.id
         }
-        url = detail_url(lesson.id)
+        url = get_lesson_detail_url(self.course.id, lesson.id)
         response = self.client.put(url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -179,7 +193,7 @@ class PrivateLessonApiTests(TestCase):
             description='Test Description',
             course=self.course
         )
-        url = detail_url(lesson.id)
+        url = get_lesson_detail_url(self.course.id, lesson.id)
         response = self.client.delete(url)
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
@@ -193,7 +207,7 @@ class PrivateLessonApiTests(TestCase):
             'description': 'Test Description',
             'course': self.course.id
         }
-        response = self.client.post(LESSON_URL, payload)
+        response = self.client.post(self.LESSON_URL, payload)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_student_cannot_update_lesson(self):
@@ -204,7 +218,7 @@ class PrivateLessonApiTests(TestCase):
             description='Test Description',
             course=self.course
         )
-        url = detail_url(lesson.id)
+        url = get_lesson_detail_url(self.course.id, lesson.id)
         response = self.client.patch(url, {'title': 'New Title'})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -216,7 +230,7 @@ class PrivateLessonApiTests(TestCase):
             description='Test Description',
             course=self.course
         )
-        url = detail_url(lesson.id)
+        url = get_lesson_detail_url(self.course.id, lesson.id)
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -232,7 +246,7 @@ class PrivateLessonApiTests(TestCase):
         lesson1 = Lesson.objects.create(title='Lesson 1', course=self.course)
         lesson2 = Lesson.objects.create(title='Lesson 2', course=course2)
 
-        response = self.client.get(LESSON_URL, {'course': self.course.id})
+        response = self.client.get(self.LESSON_URL, {'course': self.course.id})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
@@ -251,37 +265,32 @@ class PrivateLessonApiTests(TestCase):
             course=self.course
         )
 
-        response = self.client.get(LESSON_URL, {'search': 'python'})
+        response = self.client.get(self.LESSON_URL, {'search': 'python'})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['title'], 'Python Basics')
 
-
     def test_upload_lesson_file(self):
         """Test uploading a file to a lesson."""
-        # Create a lesson object
         lesson = Lesson.objects.create(
             title='Test Lesson',
             description='Test Description',
             course=self.course
         )
 
-        # Define the URL for file upload
-        url = reverse('lessons:lesson-file-list')  # Adjust based on your `LessonFileViewSet` URL
+        url = get_lesson_file_list_url(self.course.id, lesson.id)
         payload = {
             'lesson': lesson.id,
             'file': SimpleUploadedFile('testfile.txt', b'file content')
         }
 
-        # Send a POST request with the file
         response = self.client.post(url, payload, format='multipart')
 
-        # Assertions
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(LessonFile.objects.filter(lesson=lesson).exists())  # Ensure file is saved
+        self.assertTrue(LessonFile.objects.filter(lesson=lesson).exists())
         lesson_file = LessonFile.objects.get(lesson=lesson)
-        self.assertTrue(lesson_file.file.name.endswith('.txt'))  # Verify file name
+        self.assertTrue(lesson_file.file.name.endswith('.txt'))
 
     def test_retrieve_lesson_with_files(self):
         """Test retrieving a lesson includes its associated files."""
@@ -291,14 +300,13 @@ class PrivateLessonApiTests(TestCase):
             course=self.course
         )
 
-        # Create test files
         for i in range(2):
             LessonFile.objects.create(
                 lesson=lesson,
                 file=SimpleUploadedFile(f'test{i}.txt', b'content')
             )
 
-        url = reverse('lessons:lesson-detail', args=[lesson.id])  # Adjust URL if needed
+        url = get_lesson_detail_url(self.course.id, lesson.id)
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -319,63 +327,9 @@ class PrivateLessonApiTests(TestCase):
         lesson2.created_at = timezone.now() + timedelta(days=1)
         lesson2.save()
 
-        response = self.client.get(LESSON_URL)
+        response = self.client.get(self.LESSON_URL)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        lessons = response.data['results']
+        lessons = response.data
         self.assertEqual(lessons[0]['title'], 'Old Lesson')
         self.assertEqual(lessons[1]['title'], 'New Lesson')
-
-    def test_order_lessons_by_created_date(self):
-        """Test lessons are ordered by creation date."""
-        lesson1 = Lesson.objects.create(
-            title='Old Lesson',
-            description='Old Description',
-            course=self.course
-        )
-
-        # Create a lesson with a future timestamp
-        lesson2 = Lesson.objects.create(
-            title='New Lesson',
-            description='New Description',
-            course=self.course
-        )
-        lesson2.created_at = timezone.now() + timedelta(days=1)
-        lesson2.save()
-
-        response = self.client.get(LESSON_URL)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    def test_create_lesson(self):
-        """Test creating a lesson"""
-        payload = {
-            'title': 'Test Lesson',
-            'description': 'Test Description',
-            'course': self.course.id,
-        }
-        response = self.client.post(LESSON_URL, payload)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        lesson = Lesson.objects.get(title='Test Lesson')
-        self.assertEqual(lesson.description, payload['description'])
-        self.assertEqual(lesson.course.id, payload['course'])
-
-
-    def test_update_lesson(self):
-        """Test updating lesson prerequisites."""
-        lesson = Lesson.objects.create(
-            title='Test Lesson',
-            description='Test Description',
-            course=self.course
-        )
-
-        payload = {
-            'title': 'Test Lesson Title',
-        }
-
-        url = detail_url(lesson.id)
-        response = self.client.patch(url, payload)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        lesson.refresh_from_db()
-        self.assertEqual(lesson.title, payload['title'])

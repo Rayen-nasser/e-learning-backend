@@ -6,8 +6,6 @@ app_name = 'lessons'
 
 # Use DefaultRouter to generate the routes
 router = DefaultRouter()
-router.register(r'lessons', LessonViewSet, basename='lesson')
-router.register(r'lesson-files', LessonFileViewSet, basename='lesson-file')
 
 # Include the router-generated routes
 urlpatterns = [
