@@ -27,9 +27,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r elearning/requirements.txt  # Adjusted path to requirements.txt
 
-      # Step 4: Run Tests
+      # Step 4: Set environment variables
+      - name: Set environment variables
+        run: |
+          echo "DB_HOST=dpg-ctsfun3tq21c7399efp0-a.oregon-postgres.render.com" >> $GITHUB_ENV
+          echo "DB_NAME=elearning_db_dlzy" >> $GITHUB_ENV
+          echo "DB_USER=root" >> $GITHUB_ENV
+          echo "DB_PASS=w38g4rg40NZV27Rlo6dx3b4WlN80lBY2" >> $GITHUB_ENV
+          echo "DB_PORT=5432" >> $GITHUB_ENV
+
+      # Step 5: Run makemigrations and migrate
+      - name: Run makemigrations and migrate
+        run: |
+          cd elearning  # Change to the directory containing manage.py
+          python manage.py makemigrations  # Generate new migrations based on the changes
+          python manage.py migrate  # Apply the migrations to the database
+
+      # Step 6: Run Tests
       - name: Run Tests
         run: |
           cd elearning  # Change to the directory containing manage.py
           python manage.py wait_for_db  # Ensure the DB is ready if you're using this command
-          python manage.py test
+          python manage.py test  # Run the tests
