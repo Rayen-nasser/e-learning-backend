@@ -153,13 +153,23 @@ class EnrollmentModelTest(TestCase):
         self.student = models.User.objects.create_user(
             username='teststudent',
             email='student@example.com',
-            password='password123'
+            password='password123',
+            role='Student'
+        )
+
+        self.instructor = models.User.objects.create_user(
+            email='instructor@example.com',
+            username='instructoruser',
+            password='password123',
+            role='Instructor'
         )
 
         # Create a course
         self.course = models.Course.objects.create(
             title='Sample Course',
             description='This is a sample course.',
+            instructor=self.instructor,
+            category='Sample Category',
             price=49.99
         )
 
