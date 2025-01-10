@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.generics import get_object_or_404
 from core.models import Lesson, Question, Quiz
 from .serializers import QuestionSerializer, QuizSerializer
+from drf_spectacular.utils import extend_schema, extend_schema_view
 
 class BasePermissionMixin:
     """Mixin to handle permission checks for instructors."""
@@ -14,6 +15,42 @@ class BasePermissionMixin:
         if lesson.course.instructor != self.request.user:
             raise PermissionDenied(f"You do not have permission to update this {obj.__class__.__name__.lower()}.")
 
+
+@extend_schema_view(
+    list=extend_schema(
+        description="Retrieve a list of quizzes for the specified lesson.",
+        summary="List Quizzes",
+        tags=["Quiz"],
+    ),
+    retrieve=extend_schema(
+        description="Retrieve details of a specific quiz.",
+        summary="Retrieve Quiz",
+        tags=["Quiz"],
+    ),
+    create=extend_schema(
+        description="Create a new quiz for the specified lesson.",
+        summary="Create Quiz",
+        request=QuizSerializer,
+        tags=["Quiz"],
+    ),
+    update=extend_schema(
+        description="Update details of an existing quiz.",
+        summary="Update Quiz",
+        request=QuizSerializer,
+        tags=["Quiz"],
+    ),
+    partial_update=extend_schema(
+        description="Partially update details of an existing quiz.",
+        summary="Partial Update Quiz",
+        request=QuizSerializer,
+        tags=["Quiz"],
+    ),
+    destroy=extend_schema(
+        description="Delete a specific quiz.",
+        summary="Delete Quiz",
+        tags=["Quiz"],
+    ),
+)
 class QuizViewSet(BasePermissionMixin, viewsets.ModelViewSet):
     """Manage quizzes in the database."""
     serializer_class = QuizSerializer
@@ -30,7 +67,6 @@ class QuizViewSet(BasePermissionMixin, viewsets.ModelViewSet):
         lesson_id = self.kwargs.get('lesson_pk')
         lesson = get_object_or_404(Lesson, id=lesson_id)
 
-        # Check if the user is the instructor of the lesson
         if lesson.course.instructor != self.request.user:
             raise PermissionDenied("You do not have permission to create a quiz for this lesson.")
 
@@ -42,6 +78,42 @@ class QuizViewSet(BasePermissionMixin, viewsets.ModelViewSet):
         self.check_instructor_permission(quiz)
         return super().update(request, *args, **kwargs)
 
+
+@extend_schema_view(
+    list=extend_schema(
+        description="Retrieve a list of questions for the specified quiz.",
+        summary="List Questions",
+        tags=["Questions"],
+    ),
+    retrieve=extend_schema(
+        description="Retrieve details of a specific question.",
+        summary="Retrieve Question",
+        tags=["Questions"],
+    ),
+    create=extend_schema(
+        description="Create a new question for the specified quiz.",
+        summary="Create Question",
+        request=QuestionSerializer,
+        tags=["Questions"],
+    ),
+    update=extend_schema(
+        description="Update details of an existing question.",
+        summary="Update Question",
+        request=QuestionSerializer,
+        tags=["Questions"],
+    ),
+    partial_update=extend_schema(
+        description="Partially update details of an existing question.",
+        summary="Partial Update Question",
+        request=QuestionSerializer,
+        tags=["Questions"],
+    ),
+    destroy=extend_schema(
+        description="Delete a specific question.",
+        summary="Delete Question",
+        tags=["Questions"],
+    ),
+)
 class QuestionViewSet(BasePermissionMixin, viewsets.ModelViewSet):
     """Manage questions in the database."""
     serializer_class = QuestionSerializer
@@ -58,7 +130,6 @@ class QuestionViewSet(BasePermissionMixin, viewsets.ModelViewSet):
         quiz_id = self.kwargs.get('quiz_pk')
         quiz = get_object_or_404(Quiz, id=quiz_id)
 
-        # Check if the user is the instructor of the quiz's lesson
         self.check_instructor_permission(quiz)
         serializer.save(quiz_id=quiz_id)
 
