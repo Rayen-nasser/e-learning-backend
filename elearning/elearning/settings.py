@@ -31,7 +31,7 @@ environ.Env.read_env(env_file=BASE_DIR / '.env')  # Set path explicitly if neede
 SECRET_KEY = "django-insecure-xbs&9d&9nphr7vh@d@ijf&csp4lu@h9#g+qdcc*3g-mocpb%(w"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env.bool('DEBUG', default=True)
+DEBUG = env.bool('DEBUG', default=False)
 
 ALLOWED_HOSTS = ['*']
 
@@ -52,7 +52,9 @@ INSTALLED_APPS = [
     'core',
     'user',
     'drf_spectacular',
-    'lesson'
+    'lesson',
+    'django_extensions',
+    'quiz'
 ]
 
 # REST Framework settings
@@ -144,6 +146,7 @@ DATABASES = {
         'PORT': env('DB_PORT', default='5432'),
     }
 }
+
 
 
 # Password validation
