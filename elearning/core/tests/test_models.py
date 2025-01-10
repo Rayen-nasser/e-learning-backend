@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from core import models
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 
 class CustomUserManagerTests(TestCase):
@@ -143,3 +143,53 @@ class QuizAndQuestionTests(TestCase):
         self.assertEqual(question.question_text, 'This is a test question')
         self.assertEqual(question.correct_option, 1)
         self.assertEqual(question.points, 3)
+
+
+class EnrollmentModelTest(TestCase):
+    """Tests for the Enrollment model"""
+
+    def setUp(self):
+        # Create a user
+        self.student = models.User.objects.create_user(
+            username='teststudent',
+            email='student@example.com',
+            password='password123'
+        )
+
+        # Create a course
+        self.course = models.Course.objects.create(
+            title='Sample Course',
+            description='This is a sample course.',
+            price=49.99
+        )
+
+        # Create an enrollment
+        self.enrollment = models.Enrollment.objects.create(
+            student=self.student,
+            course=self.course,
+            progress=0.0,
+            completed=False
+        )
+
+    def test_enrollment_creation(self):
+        """Test that an Enrollment instance is created successfully"""
+        self.assertEqual(self.enrollment.student, self.student)
+        self.assertEqual(self.enrollment.course, self.course)
+        self.assertEqual(self.enrollment.progress, 0.0)
+        self.assertFalse(self.enrollment.completed)
+
+    def test_progress_update(self):
+        """Test updating the progress field"""
+        self.enrollment.progress = 75.5
+        self.enrollment.save()
+
+        updated_enrollment = models.Enrollment.objects.get(id=self.enrollment.id)
+        self.assertEqual(updated_enrollment.progress, 75.5)
+
+    def test_mark_completed(self):
+        """Test marking the enrollment as completed"""
+        self.enrollment.completed = True
+        self.enrollment.save()
+
+        updated_enrollment = models.Enrollment.objects.get(id=self.enrollment.id)
+        self.assertTrue(updated_enrollment.completed)
