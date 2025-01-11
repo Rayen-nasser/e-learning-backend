@@ -4,7 +4,40 @@ from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from core.models import Enrollment, Course
 from .serializers import EnrollmentSerializer
+from drf_spectacular.utils import extend_schema, extend_schema_view
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List enrollments for a course",
+        description="Retrieve a list of enrollments for the specified course. Filters based on user role (Instructor or Student).",
+        tags=["Enrollment"]
+    ),
+    create=extend_schema(
+        summary="Enroll a student in a course",
+        description="Enroll a student in the specified course. Students cannot enroll in their own courses.",
+        tags=["Enrollment"]
+    ),
+    update=extend_schema(
+        summary="Update enrollment progress or completion status",
+        description="Update the enrollment's progress or completion status. Only the student can update their own enrollment.",
+        tags=["Enrollment"]
+    ),
+    destroy=extend_schema(
+        summary="Delete an enrollment",
+        description="Delete an enrollment. Only the student can delete their own enrollment.",
+        tags=["Enrollment"],
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve an enrollment",
+        description="Retrieve an enrollment for the specified course. Filters based on user role (Instructor or Student).",
+        tags=["Enrollment"]
+    ),
+    partial_update=extend_schema(
+        summary="Partially update enrollment progress or completion status",
+        description="Update the enrollment's progress or completion status. Only the student can update their own enrollment.",
+        tags=["Enrollment"]
+    ),
+)
 class EnrollmentViewSet(viewsets.ModelViewSet):
     """ViewSet for managing enrollments"""
     serializer_class = EnrollmentSerializer
