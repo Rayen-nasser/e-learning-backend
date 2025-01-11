@@ -54,7 +54,8 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'lesson',
     'django_extensions',
-    'quiz'
+    'quiz',
+    'enrollment',
 ]
 
 # REST Framework settings
