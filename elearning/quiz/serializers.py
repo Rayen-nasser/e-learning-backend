@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from core.models import Quiz, Question
+from core.models import Quiz, Question, Submission
+
 
 class QuestionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -19,3 +20,15 @@ class QuizSerializer(serializers.ModelSerializer):
         model = Quiz
         fields = ['id', 'title', 'lesson', 'description', 'is_active', 'time_limit', 'created_at', 'updated_at', 'questions']
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class SubmissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Submission
+        fields = ['id', 'quiz', 'student', 'score', 'submission_date']
+
+    def validate(self, data):
+        # Check if the student has already submitted this quiz
+        if Submission.objects.filter(quiz=data['quiz'], student=data['student']).exists():
+            raise serializers.ValidationError("You have already submitted this quiz.")
+        return data

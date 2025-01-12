@@ -2,9 +2,11 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.generics import get_object_or_404
-from core.models import Lesson, Question, Quiz
-from .serializers import QuestionSerializer, QuizSerializer
+from core.models import Lesson, Question, Quiz, Submission
+from .serializers import QuestionSerializer, QuizSerializer, SubmissionSerializer
 from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import viewsets, mixins, permissions
+from django.shortcuts import get_object_or_404
 
 class BasePermissionMixin:
     """Mixin to handle permission checks for instructors."""
@@ -138,3 +140,44 @@ class QuestionViewSet(BasePermissionMixin, viewsets.ModelViewSet):
         question = self.get_object()
         self.check_instructor_permission(question)
         return super().update(request, *args, **kwargs)
+
+
+class IsStudentUser(permissions.BasePermission):
+    """
+    Custom permission to only allow students to submit quizzes.
+    """
+    def has_permission(self, request, view):
+        return request.user.role == 'Student'
+
+class SubmissionViewSet(mixins.CreateModelMixin,
+                       mixins.ListModelMixin,
+                       mixins.RetrieveModelMixin,
+                       viewsets.GenericViewSet):
+    """
+    ViewSet for handling quiz submissions.
+    Allows create, list, and retrieve operations only.
+    """
+    serializer_class = SubmissionSerializer
+    permission_classes = [permissions.IsAuthenticated, IsStudentUser]
+
+    def get_queryset(self):
+        quiz_pk = self.kwargs.get('quiz_pk')
+        # Students can only see their own submissions
+        if self.request.user.role == 'Student':
+            return Submission.objects.filter(
+                quiz_id=quiz_pk,
+                student=self.request.user
+            )
+        # Instructors can see all submissions for their quizzes
+        return Submission.objects.filter(quiz_id=quiz_pk)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        quiz_pk = self.kwargs.get('quiz_pk')
+        context['quiz'] = get_object_or_404(Quiz, pk=quiz_pk)
+        return context
+
+    def perform_create(self, serializer):
+        quiz = get_object_or_404(Quiz, pk=self.kwargs.get('quiz_pk'))
+        serializer.save(student=self.request.user, quiz=quiz)
+

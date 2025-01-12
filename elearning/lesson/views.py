@@ -3,7 +3,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
 from core.models import Course, Lesson, LessonFile
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample, OpenApiTypes
 from .serializers import LessonSerializer, LessonFileSerializer
 from rest_framework.permissions import IsAuthenticated
 
@@ -12,36 +12,111 @@ from rest_framework.permissions import IsAuthenticated
     list=extend_schema(
         description="Retrieve a list of lessons for a course. Optionally filter by course ID or search by title/description.",
         parameters=[
-            OpenApiParameter(name='search', type=str, description="Search lessons by title or description."),
+            OpenApiParameter(
+                name='course_pk',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description="Primary key of the course to retrieve lessons for."
+            ),
+            OpenApiParameter(
+                name='search',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Search lessons by title or description."
+            ),
         ],
         responses={200: LessonSerializer(many=True)},
         tags=["Lesson"],
     ),
     retrieve=extend_schema(
         description="Retrieve details of a specific lesson.",
+        parameters=[
+            OpenApiParameter(
+                name='course_pk',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description="Primary key of the course to which the lesson belongs."
+            ),
+            OpenApiParameter(
+                name='pk',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description="Primary key of the lesson to retrieve."
+            ),
+        ],
         responses={200: LessonSerializer},
         tags=["Lesson"],
     ),
     create=extend_schema(
         description="Create a new lesson for a course. Only the course instructor can perform this action.",
+        parameters=[
+            OpenApiParameter(
+                name='course_pk',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description="Primary key of the course to which the new lesson will be added."
+            ),
+        ],
         request=LessonSerializer,
         responses={201: LessonSerializer},
         tags=["Lesson"],
     ),
     update=extend_schema(
         description="Update an existing lesson. Only the course instructor can perform this action.",
+        parameters=[
+            OpenApiParameter(
+                name='course_pk',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description="Primary key of the course to which the lesson belongs."
+            ),
+            OpenApiParameter(
+                name='pk',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description="Primary key of the lesson to update."
+            ),
+        ],
         request=LessonSerializer,
         responses={200: LessonSerializer},
         tags=["Lesson"],
     ),
     partial_update=extend_schema(
         description="Partially update a lesson. Only the course instructor can perform this action.",
+        parameters=[
+            OpenApiParameter(
+                name='course_pk',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description="Primary key of the course to which the lesson belongs."
+            ),
+            OpenApiParameter(
+                name='pk',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description="Primary key of the lesson to partially update."
+            ),
+        ],
         request=LessonSerializer,
         responses={200: LessonSerializer},
         tags=["Lesson"],
     ),
     destroy=extend_schema(
         description="Delete a lesson. Only the course instructor can perform this action.",
+        parameters=[
+            OpenApiParameter(
+                name='course_pk',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description="Primary key of the course to which the lesson belongs."
+            ),
+            OpenApiParameter(
+                name='pk',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description="Primary key of the lesson to delete."
+            ),
+        ],
         responses={204: None},
         tags=["Lesson"],
     ),
