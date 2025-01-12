@@ -163,8 +163,8 @@ class Enrollment(models.Model):
     def __str__(self):
         return f"{self.student.username} - {self.course.title}"
 
-# class Progress(models.Model):
-#     enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE)
-#     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE)
-#     completed = models.BooleanField(default=False)
-#     score = models.FloatField(default=0.0)
+class Submission(models.Model):
+    student = models.ForeignKey(User, on_delete=models.CASCADE)
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
+    submission_date = models.DateTimeField(auto_now_add=True)
+    score = models.PositiveIntegerField(default=0)
