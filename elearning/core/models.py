@@ -168,6 +168,7 @@ class Submission(models.Model):
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
     submission_date = models.DateTimeField(auto_now_add=True)
     score = models.PositiveIntegerField(default=0)
+    answers = models.JSONField(default=list)
 
     def __str__(self):
         return f"{self.student.username}'s submission for {self.quiz.title}"
