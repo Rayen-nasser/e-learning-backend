@@ -22,13 +22,19 @@ class QuizSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
+class SubmissionAnswerSerializer(serializers.Serializer):
+    question = serializers.IntegerField()
+    selected_option = serializers.IntegerField()
+
 class SubmissionSerializer(serializers.ModelSerializer):
+    answers = SubmissionAnswerSerializer(many=True)
+
     class Meta:
         model = Submission
-        fields = ['id', 'quiz', 'student', 'score', 'submission_date']
+        fields = ['id', 'quiz', 'student', 'score', 'answers', 'submission_date']
+        read_only_fields = ['id', 'submission_date', 'score', 'student', 'quiz']
 
-    def validate(self, data):
-        # Check if the student has already submitted this quiz
-        if Submission.objects.filter(quiz=data['quiz'], student=data['student']).exists():
-            raise serializers.ValidationError("You have already submitted this quiz.")
-        return data
+    def validate_answers(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Answers must be provided as a list")
+        return value

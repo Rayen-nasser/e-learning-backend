@@ -1,5 +1,5 @@
 from rest_framework.exceptions import PermissionDenied
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.generics import get_object_or_404
 from core.models import Lesson, Question, Quiz, Submission
@@ -7,6 +7,7 @@ from .serializers import QuestionSerializer, QuizSerializer, SubmissionSerialize
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import viewsets, mixins, permissions
 from django.shortcuts import get_object_or_404
+from rest_framework.response import Response
 
 class BasePermissionMixin:
     """Mixin to handle permission checks for instructors."""
@@ -162,22 +163,105 @@ class SubmissionViewSet(mixins.CreateModelMixin,
 
     def get_queryset(self):
         quiz_pk = self.kwargs.get('quiz_pk')
-        # Students can only see their own submissions
         if self.request.user.role == 'Student':
             return Submission.objects.filter(
                 quiz_id=quiz_pk,
                 student=self.request.user
             )
-        # Instructors can see all submissions for their quizzes
         return Submission.objects.filter(quiz_id=quiz_pk)
 
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        quiz_pk = self.kwargs.get('quiz_pk')
-        context['quiz'] = get_object_or_404(Quiz, pk=quiz_pk)
-        return context
+    def validate_answers_and_calculate_score(self, quiz, answers):
+        """
+        Validate answers and calculate the score for the quiz submission.
+        Returns a tuple of (score, error_message).
+        """
+        if not answers or not isinstance(answers, list):
+            return 0, "Answers must be provided as a list"
 
-    def perform_create(self, serializer):
+        # Get all questions for the quiz
+        quiz_questions = {q.id: q for q in quiz.questions.all()}
+
+        # Validate that all questions are answered
+        answered_question_ids = {answer.get('question') for answer in answers}
+        if answered_question_ids != set(quiz_questions.keys()):
+            return 0, "All questions must be answered"
+
+        # Validate each answer and calculate score
+        total_score = 0
+        seen_questions = set()
+
+        for answer in answers:
+            question_id = answer.get('question')
+            selected_option = answer.get('selected_option')
+
+            # Check for duplicate answers
+            if question_id in seen_questions:
+                return 0, f"Duplicate answers found for question: {question_id}"
+            seen_questions.add(question_id)
+
+            # Validate question exists and belongs to quiz
+            question = quiz_questions.get(question_id)
+            if not question:
+                return 0, f"Invalid question ID: {question_id}"
+
+            # Validate selected option
+            if not isinstance(selected_option, int) or str(selected_option) not in question.options:
+                return 0, f"Invalid option selected for question {question_id}"
+
+            # Calculate score for correct answers
+            if selected_option == question.correct_option:
+                total_score += question.points
+
+        return total_score, None
+
+    def create(self, request, *args, **kwargs):
+        """
+        Create a new submission with validated answers and calculated score.
+        """
         quiz = get_object_or_404(Quiz, pk=self.kwargs.get('quiz_pk'))
-        serializer.save(student=self.request.user, quiz=quiz)
 
+        # Check if quiz is active
+        if not quiz.is_active:
+            return Response(
+                {"error": "This quiz is no longer active"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if student has already submitted
+        if Submission.objects.filter(quiz=quiz, student=request.user).exists():
+            return Response(
+                {"error": "You have already submitted this quiz"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate answers and calculate score
+        answers = request.data.get('answers', [])
+        score, error_message = self.validate_answers_and_calculate_score(quiz, answers)
+
+        if error_message:
+            return Response(
+                {"error": error_message},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create submission with calculated score
+        data = {
+            'answers': answers,
+        }
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer, quiz=quiz, score=score)
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED,
+            headers=headers
+        )
+
+    def perform_create(self, serializer, quiz, score):
+        serializer.save(
+            student=self.request.user,
+            quiz=quiz,
+            score=score
+        )
