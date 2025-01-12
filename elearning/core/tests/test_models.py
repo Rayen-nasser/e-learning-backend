@@ -173,12 +173,28 @@ class EnrollmentModelTest(TestCase):
             price=49.99
         )
 
+        # Create a lesson
+        self.lesson = models.Lesson.objects.create(
+            title='Test Lesson',
+            description='This is a test lesson',
+            course=self.course,
+        )
+
         # Create an enrollment
         self.enrollment = models.Enrollment.objects.create(
             student=self.student,
             course=self.course,
             progress=0.0,
             completed=False
+        )
+
+        # Create a quiz
+        self.quiz = models.Quiz.objects.create(
+            title='Sample Quiz',
+            description='This is a sample quiz.',
+            lesson=self.lesson,
+            time_limit=timedelta(hours=1, minutes=30),
+            is_active=True
         )
 
     def test_enrollment_creation(self):
@@ -203,3 +219,14 @@ class EnrollmentModelTest(TestCase):
 
         updated_enrollment = models.Enrollment.objects.get(id=self.enrollment.id)
         self.assertTrue(updated_enrollment.completed)
+
+    def test_create_submission(self):
+        submission = models.Submission.objects.create(
+            quiz=self.quiz,
+            student=self.student,
+            score=85,
+        )
+        self.assertEqual(submission.quiz, self.quiz)
+        self.assertEqual(submission.student, self.student)
+        self.assertEqual(submission.score, 85)
+
