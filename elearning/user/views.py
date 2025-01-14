@@ -38,8 +38,7 @@ class LoginView(TokenObtainPairView):
                     'id': user.id,
                     'username': user.username,
                     'email': user.email,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
+                    'profile_image': user.profile,
                     'role': user.role
                 },
                 'tokens': {
@@ -68,9 +67,8 @@ class LoginView(TokenObtainPairView):
                     'id': 1,
                     'username': 'testuser',
                     'email': 'test@example.com',
-                    'first_name': 'John',
-                    'last_name': 'Doe',
-                    'role': 'User'
+                    'role': 'User',
+                    'profile_image': 'http://example.com/media/uploads/user_profiles/testuser.jpg',
                 },
                 'tokens': {
                     'refresh': '...',
@@ -91,6 +89,12 @@ class RegisterView(generics.CreateAPIView):
         if serializer.is_valid(raise_exception=True):
             user = serializer.save()
             refresh = RefreshToken.for_user(user)
+
+            # Build the full URL for the profile image
+            profile_image_url = None
+            if user.profile_image:
+                profile_image_url = request.build_absolute_uri(user.profile_image.url)
+
             return Response({
                 'status': 'success',
                 'message': 'User registered successfully.',
@@ -98,8 +102,7 @@ class RegisterView(generics.CreateAPIView):
                     'id': user.id,
                     'username': user.username,
                     'email': user.email,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
+                    'profile_image': profile_image_url,
                     'role': user.role
                 },
                 'tokens': {
@@ -113,12 +116,13 @@ class RegisterView(generics.CreateAPIView):
             'errors': serializer.errors,
         }, status=status.HTTP_400_BAD_REQUEST)
 
+
 # Profile View (GET & PUT & DELETE & PATCH)
 @extend_schema(
     examples=[
         OpenApiExample(
             "Successful Response",
-            value={"id": 1, "username": "user123", "email": "user@example.com"}
+            value={"id": 1, "username": "user123", "email": "user@example.com", "profile_image": "http://example.com/media/uploads/user_profiles/testuser.jpg"}
         )
     ],
     tags=["User"]

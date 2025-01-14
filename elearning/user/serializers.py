@@ -11,7 +11,7 @@ User = get_user_model()
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'first_name', 'last_name', 'role']
+        fields = ['username', 'email', 'password', 'profile_image', 'role']
         extra_kwargs = {
             'password': {'write_only': True},
         }
@@ -32,8 +32,11 @@ class RegisterSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
-        # Create user instance with validated data
+        profile_image = validated_data.pop('profile_image', None)
         user = User.objects.create_user(**validated_data)
+        if profile_image:
+            user.profile_image = profile_image
+            user.save()
         return user
 
 
@@ -67,7 +70,7 @@ class LoginSerializer(serializers.Serializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['username', 'email', 'first_name', 'last_name']  # Exclude 'role' if not updatable
+        fields = ['username', 'email', 'profile_image']  # Exclude 'role' if not updatable
 
 
 class ChangePasswordSerializer(serializers.Serializer):

@@ -4,8 +4,6 @@ from uuid import uuid4
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.conf import settings
-
-from django.contrib.auth.models import BaseUserManager
 from django.core.validators import FileExtensionValidator
 
 class CustomUserManager(BaseUserManager):
@@ -30,6 +28,13 @@ class CustomUserManager(BaseUserManager):
         return self.create_user(email, username, password, **extra_fields)
 
 
+def user_profile_upload_path(instance, filename):
+    """Generate file path for new profile image"""
+    extension = filename.split('.')[-1]
+    filename = f"{uuid4()}.{extension}"
+    return os.path.join("uploads/user_profiles/", filename)
+
+
 class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
         ('Student', 'Student'),
@@ -39,9 +44,14 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=150, unique=True)
-    first_name = models.CharField(max_length=30)
-    last_name = models.CharField(max_length=30)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='Student')
+    profile_image = models.ImageField(
+        upload_to=user_profile_upload_path,
+        validators=[FileExtensionValidator(['jpg', 'jpeg', 'png'])],
+        null=True,
+        blank=True,
+        help_text="Upload a profile image (optional)"
+    )
 
     # Administrative and activity flags
     is_active = models.BooleanField(default=True)
@@ -65,7 +75,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username', 'first_name', 'last_name']
+    REQUIRED_FIELDS = ['username']
 
     objects = CustomUserManager()
 

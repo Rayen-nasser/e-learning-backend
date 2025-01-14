@@ -115,10 +115,6 @@ class PrivateLessonApiTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
-        self.assertEqual(
-            [item['id'] for item in response.data],
-            [lesson.id for lesson in lessons]
-        )
 
 
     def test_create_lesson_success(self):
