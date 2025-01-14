@@ -13,8 +13,7 @@ class CustomUserManagerTests(TestCase):
             email='user@example.com',
             username='testuser',
             password='password123',
-            first_name='John',
-            last_name='Doe',
+            profile_image='http://example.com/media/uploads/user_profiles/testuser.jpg',
             role='Student'
         )
         self.assertEqual(user.email, 'user@example.com')
@@ -58,8 +57,7 @@ class CourseAndLessonTests(TestCase):
             email='instructor@example.com',
             username='instructoruser',
             password='password123',
-            first_name='Instructor',
-            last_name='User',
+            profile_image='http://example.com/media/uploads/user_profiles/testuser.jpg',
             role='Instructor'
         )
         self.course = models.Course.objects.create(

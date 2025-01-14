@@ -41,8 +41,6 @@ class PublicUserApiTests(TestCase):
                 'email': f'{role.lower()}@example.com',
                 'password': 'Testpassword123',
                 'username': f'{role.lower()}user',
-                'first_name': 'John',
-                'last_name': 'Doe',
                 'role': role
             }
 
@@ -60,8 +58,7 @@ class PublicUserApiTests(TestCase):
             'email': 'test@example.com',
             'password': 'password123',
             'username': 'testuser',
-            'first_name': 'John',
-            'last_name': 'Doe',
+            'profile_image': 'http://example.com/media/uploads/user_profiles/testuser.jpg',
             'role': 'Student'
         }
         create_user(**payload)
@@ -74,8 +71,7 @@ class PublicUserApiTests(TestCase):
             'email': 'test@example.com',
             'password': '123',
             'username': 'testuser',
-            'first_name': 'John',
-            'last_name': 'Doe',
+            'profile_image': 'http://example.com/media/uploads/user_profiles/testuser.jpg',
             'role': 'Student'
         }
         res = self.client.post(REGISTER_USER_URL, payload)
@@ -88,8 +84,7 @@ class PublicUserApiTests(TestCase):
             'email': 'test@example.com',
             'password': 'password123',
             'username': 'testuser',
-            'first_name': 'John',
-            'last_name': 'Doe',
+            'profile_image': 'http://example.com/media/uploads/user_profiles/testuser.jpg',
             'role': 'Student'
         }
         create_user(**payload)
@@ -104,8 +99,7 @@ class PublicUserApiTests(TestCase):
             'email': 'test@example.com',
             'password': 'password123',
             'username': 'testuser',
-            'first_name': 'John',
-            'last_name': 'Doe',
+            'profile_image': 'http://example.com/media/uploads/user_profiles/testuser.jpg',
             'role': 'Student'
         }
         create_user(**payload)
@@ -118,8 +112,7 @@ class PublicUserApiTests(TestCase):
         user = User.objects.create(
             email='testuser@example.com',
             username='testuser',
-            first_name='Test',
-            last_name='User',
+            profile_image='http://example.com/media/uploads/user_profiles/testuser.jpg',
         )
 
         # Construct the URL using reverse with the user's ID
@@ -142,8 +135,7 @@ class PrivateUserApiTests(TestCase):
             email='test@example.com',
             password='password123',
             username='testuser',
-            first_name='John',
-            last_name='Doe',
+            profile_image='http://example.com/media/uploads/user_profiles/testuser.jpg',
             role='Student'
         )
         self.client = APIClient()
@@ -162,8 +154,7 @@ class PrivateUserApiTests(TestCase):
         res = self.client.patch(USER_PROFILE_URL, payload)
         self.user.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(self.user.first_name, payload['first_name'])
-        self.assertEqual(self.user.last_name, payload['last_name'])
+
 
     def test_change_password_success(self):
         """Test changing the authenticated user's password."""
@@ -195,16 +186,14 @@ class PrivateUserApiTests(TestCase):
             email='student@example.com',
             password='password123',
             username='studentuser',
-            first_name='Student',
-            last_name='User',
+            profile_image='http://example.com/media/uploads/user_profiles/testuser.jpg',
             role='Student'
         )
         instructor = create_user(
             email='instructor@example.com',
             password='password123',
             username='instructoruser',
-            first_name='Instructor',
-            last_name='User',
+            profile_image='http://example.com/media/uploads/user_profiles/testuser.jpg',
             role='Instructor'
         )
         self.user.role = "Admin"
@@ -228,8 +217,7 @@ class SecurityTests(TestCase):
             'email': 'test@example.com',
             'password': 'password123',
             'username': 'testuser',
-            'first_name': 'John',
-            'last_name': 'Doe',
+            'profile_image': 'http://example.com/media/uploads/user_profiles/testuser.jpg',
             'role': 'Student'
         }
         # Test with a SQL injection string in the email
@@ -243,8 +231,7 @@ class SecurityTests(TestCase):
             'email': '<script>alert("XSS")</script>',
             'password': 'password123',
             'username': 'testuser',
-            'first_name': 'John',
-            'last_name': 'Doe',
+            'profile_image': 'http://example.com/media/uploads/user_profiles/testuser.jpg',
             'role': 'Student'
         }
         res = self.client.post(REGISTER_USER_URL, payload)
@@ -256,8 +243,7 @@ class SecurityTests(TestCase):
             'email': 'test@example.com',
             'password': 'password123',
             'username': 'testuser',
-            'first_name': 'John',
-            'last_name': 'Doe',
+            'profile_image': 'http://example.com/media/uploads/user_profiles/testuser.jpg',
             'role': 'Student'
         }
         create_user(**payload)

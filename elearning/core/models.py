@@ -32,7 +32,7 @@ def user_profile_upload_path(instance, filename):
     """Generate file path for new profile image"""
     extension = filename.split('.')[-1]
     filename = f"{uuid4()}.{extension}"
-    return os.path.join("uploads/user_profiles/", filename)
+    return os.path.join("user_profiles/", filename)
 
 
 class User(AbstractBaseUser, PermissionsMixin):

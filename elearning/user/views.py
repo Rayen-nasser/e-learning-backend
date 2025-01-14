@@ -31,6 +31,11 @@ class LoginView(TokenObtainPairView):
         if serializer.is_valid(raise_exception=True):
             user = serializer.validated_data['user']
             refresh = RefreshToken.for_user(user)
+
+            profile_image_url = None
+            if user.profile_image:
+                profile_image_url = request.build_absolute_uri(user.profile_image.url)
+
             return Response({
                 'status': 'success',
                 'message': 'Login successful.',
@@ -38,7 +43,7 @@ class LoginView(TokenObtainPairView):
                     'id': user.id,
                     'username': user.username,
                     'email': user.email,
-                    'profile_image': user.profile,
+                    'profile_image': profile_image_url,
                     'role': user.role
                 },
                 'tokens': {

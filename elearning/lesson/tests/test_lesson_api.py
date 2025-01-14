@@ -18,8 +18,7 @@ def create_user(**params):
         'username': 'testuser',
         'email': 'test@example.com',
         'password': 'testpass123',
-        'first_name': 'Test',
-        'last_name': 'User',
+        'profile_image': 'http://example.com/media/uploads/user_profiles/testuser.jpg',
         'role': 'Student'
     }
     defaults.update(params)

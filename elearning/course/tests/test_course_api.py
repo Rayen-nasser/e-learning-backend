@@ -34,8 +34,7 @@ class PublicCourseApiTests(TestCase):
         self.client = APIClient()
         self.instructor = create_user(
             username='instructor_user',
-            first_name='Instructor',
-            last_name='User',
+            profile_image='http://example.com/media/uploads/user_profiles/testuser.jpg',
             email='instructor@example.com',
             password='password123',
             role='Instructor'
@@ -70,8 +69,7 @@ class PrivateCourseApiTests(TestCase):
     def setUp(self):
         self.user = create_user(
             username='johnDevelopment',
-            first_name='John',
-            last_name='Doe',
+            profile_image='http://example.com/media/uploads/user_profiles/testuser.jpg',
             email='john@example.com',
             password='testpassword',
             role='Instructor'
