@@ -20,12 +20,16 @@ from django.urls import path, include
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from django.conf.urls.static import static
 
+from user.views import refresh_token
+
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/user/', include('user.urls')),
     path('api/', include('course.urls')),
     path('api/', include('lesson.urls')),
     path('api/', include('quiz.urls')),
+    path('api/token/refresh/', refresh_token, name='token_refresh'),
      path('schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
 ]

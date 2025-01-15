@@ -11,6 +11,8 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from django_ratelimit.decorators import ratelimit
 from drf_spectacular.utils import extend_schema, OpenApiExample
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.decorators import api_view
 
 
 User = get_user_model()
@@ -254,3 +256,22 @@ class UserDetailView(generics.RetrieveAPIView):
     serializer_class = UserSerializer
     lookup_field = 'pk'
     permission_classes = [permissions.AllowAny]
+
+@api_view(['POST'])
+def refresh_token(request):
+    """
+    Endpoint to refresh the access token using a valid refresh token.
+    """
+    refresh_token = request.data.get('refresh_token')
+
+    if not refresh_token:
+        return Response({'detail': 'Refresh token is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # Use the provided refresh token to create a new access token
+        token = RefreshToken(refresh_token)
+        new_access_token = str(token.access_token)
+
+        return Response({'access': new_access_token})
+    except Exception as e:
+        return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
