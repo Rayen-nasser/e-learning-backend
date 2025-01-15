@@ -88,7 +88,7 @@ from datetime import timedelta
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'BLACKLIST_AFTER_ROTATION': True,  # Enables blacklisting of refresh tokens
     'ROTATE_REFRESH_TOKENS': True,     # Optional: Enables rotating refresh tokens
     'ALGORITHM': 'HS256',
@@ -117,6 +117,7 @@ MIDDLEWARE = [
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:4200",
+   " http://localhost:9876"
 ]
 CORS_ALLOW_ALL_ORIGINS = True
 
