@@ -4,13 +4,12 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
-from .serializers import ChangePasswordSerializer, LogoutSerializer, UserSerializer, RegisterSerializer, LoginSerializer
+from .serializers import ChangePasswordSerializer, LogoutSerializer, RefreshTokenSerializer, UserSerializer, RegisterSerializer, LoginSerializer
 from django.contrib.auth import get_user_model
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from django_ratelimit.decorators import ratelimit
-from drf_spectacular.utils import extend_schema, OpenApiExample
+from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiResponse, OpenApiParameter
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.decorators import api_view
 
@@ -257,21 +256,47 @@ class UserDetailView(generics.RetrieveAPIView):
     lookup_field = 'pk'
     permission_classes = [permissions.AllowAny]
 
-@api_view(['POST'])
-def refresh_token(request):
+
+@extend_schema(
+    summary="Refresh Access Token",
+    description="Generates a new access token using the provided valid refresh token.",
+    request=RefreshTokenSerializer,
+    responses={
+        status.HTTP_200_OK: {
+            "type": "object",
+            "properties": {
+                "access": {"type": "string", "description": "The new access token."},
+            },
+        },
+        status.HTTP_400_BAD_REQUEST: {
+            "type": "object",
+            "properties": {
+                "detail": {"type": "string", "description": "Error message explaining why the request failed."},
+            },
+        },
+    },
+    tags=["Authentication"],
+)
+class RefreshTokenView(APIView):
     """
     Endpoint to refresh the access token using a valid refresh token.
     """
-    refresh_token = request.data.get('refresh_token')
+    serializer_class = RefreshTokenSerializer
 
-    if not refresh_token:
-        return Response({'detail': 'Refresh token is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    def post(self, request, *args, **kwargs):
+        # Validate the incoming request data with the serializer
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-    try:
-        # Use the provided refresh token to create a new access token
-        token = RefreshToken(refresh_token)
-        new_access_token = str(token.access_token)
+        refresh_token = serializer.validated_data.get("refresh_token")
 
-        return Response({'access': new_access_token})
-    except Exception as e:
-        return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            # Use the provided refresh token to create a new access token
+            token = RefreshToken(refresh_token)
+            new_access_token = str(token.access_token)
+
+            return Response({"access": new_access_token}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            # Handle any errors (invalid token or other issues)
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)

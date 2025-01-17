@@ -87,3 +87,6 @@ class LogoutSerializer(serializers.Serializer):
         required=True,
         help_text="The refresh token to blacklist during logout."
     )
+
+class RefreshTokenSerializer(serializers.Serializer):
+    refresh = serializers.CharField(required=True, help_text="The refresh token to refresh.")
