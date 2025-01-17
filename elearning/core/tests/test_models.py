@@ -60,12 +60,27 @@ class CourseAndLessonTests(TestCase):
             profile_image='http://example.com/media/uploads/user_profiles/testuser.jpg',
             role='Instructor'
         )
+
+        self.student = self.User.objects.create_user(
+            email='student@example.com',
+            username='studentuser',
+            password='password123',
+            role='Student'
+        )
+
+       # Create a category instance
+        self.category = models.Category.objects.create(
+            name="Test Category",
+            description="This is a test category"
+        )
+        # Create a course and associate it with the category
         self.course = models.Course.objects.create(
             title='Test Course',
             description='This is a test course',
             instructor=self.instructor,
-            price='10.00',
-            category="Test Category"
+            price=50.00,
+            category=self.category,
+            image='http://example.com/media/uploads/courses/test_course.jpg'
         )
         self.lesson = models.Lesson.objects.create(
             title='Test Lesson',
@@ -73,8 +88,53 @@ class CourseAndLessonTests(TestCase):
             course=self.course,
         )
 
-    def test_create_course(self):
-        self.assertEqual(self.course.title, 'Test Course')
+    def test_course_category(self):
+        """Test that a course is associated with the correct category"""
+        self.assertEqual(self.course.category, self.category)
+        self.assertEqual(self.category.name, "Test Category")
+
+    def test_course_image(self):
+        """Test that a course has an associated image"""
+        self.assertEqual(self.course.image, 'http://example.com/media/uploads/courses/test_course.jpg')
+
+    def test_rating_without_enrollment(self):
+        """Test that a rating cannot be added by a user who is not enrolled"""
+        unauthenticated_user = self.User.objects.create_user(
+            email='unauthuser@example.com',
+            username='unauthuser',
+            password='password123',
+            role='Student'
+        )
+        with self.assertRaises(models.ValidationError) as context:
+            models.Rating.objects.create(
+                user=unauthenticated_user,
+                course=self.course,
+                rating=4.5,
+                comment="Great course!"
+            )
+        self.assertEqual(
+            str(context.exception),
+            "User must be enrolled in the course to leave a rating."
+        )
+
+    def test_rating_with_enrollment(self):
+        """Test that a rating can be added by an enrolled user"""
+        self.enrollment = models.Enrollment.objects.create(
+            student=self.student,
+            course=self.course,
+            progress=0.0,
+            completed=False
+        )
+        rating = models.Rating.objects.create(
+            user=self.student,
+            course=self.course,
+            rating=4.5,
+            comment="Great course!"
+        )
+        self.assertEqual(rating.rating, 4.5)
+        self.assertEqual(rating.comment, "Great course!")
+        self.assertEqual(rating.user, self.student)
+        self.assertEqual(rating.course, self.course)
 
     def test_create_lesson(self):
         self.assertEqual(self.lesson.title, 'Test Lesson')
@@ -97,12 +157,19 @@ class QuizAndQuestionTests(TestCase):
             password='password123',
             role='Instructor'
         )
+        # Create a category instance
+        self.category = models.Category.objects.create(
+            name="Test Category",
+            description="This is a test category"
+        )
+        # Create a course and associate it with the category
         self.course = models.Course.objects.create(
             title='Test Course',
             description='This is a test course',
             instructor=self.instructor,
-            price='10.00',
-            category="Test Category"
+            price=50.00,
+            category=self.category,
+            image='http://example.com/media/uploads/courses/test_course.jpg'
         )
         self.lesson = models.Lesson.objects.create(
             title='Test Lesson',
@@ -162,12 +229,15 @@ class EnrollmentModelTest(TestCase):
             role='Instructor'
         )
 
+        # Create a category
+        self.category = models.Category.objects.create(name='Test Category')
+
         # Create a course
         self.course = models.Course.objects.create(
             title='Sample Course',
             description='This is a sample course.',
             instructor=self.instructor,
-            category='Sample Category',
+            category=self.category,
             price=49.99
         )
 
