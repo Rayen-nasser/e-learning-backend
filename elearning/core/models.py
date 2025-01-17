@@ -1,10 +1,16 @@
 import datetime
+from decimal import Decimal
 import os
 from uuid import uuid4
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.conf import settings
 from django.core.validators import FileExtensionValidator
+from django.db.models import Avg, Count
+from django.dispatch import receiver
+from django.db.models.signals import post_save, post_delete
+from django.core.validators import MinValueValidator, MaxValueValidator
+from jsonschema import ValidationError
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, username, password=None, **extra_fields):
@@ -34,6 +40,11 @@ def user_profile_upload_path(instance, filename):
     filename = f"{uuid4()}.{extension}"
     return os.path.join("user_profiles/", filename)
 
+def course_images_upload_path(instance, filename):
+    """Generate file path for new profile image"""
+    extension = filename.split('.')[-1]
+    filename = f"{uuid4()}.{extension}"
+    return os.path.join("courses_image/", filename)
 
 class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
@@ -82,17 +93,93 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.email
 
+class Category(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+# Updated Course Model
 class Course(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField()
-    category = models.CharField(max_length=100)  # Example: "Web Development", "Data Science", etc.
-    price = models.DecimalField(max_digits=8, decimal_places=2)  # Example: 29.99
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name="courses")
+    price = models.DecimalField(max_digits=8, decimal_places=2)
     instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="courses")
+    image = models.ImageField(
+        upload_to=course_images_upload_path,
+        validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png'])],
+        null=True,
+        blank=True,
+        help_text="Upload a course image (optional)"
+    )
+    student_count = models.PositiveIntegerField(default=0, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.title
+
+    @property
+    def average_rating(self):
+        return self.ratings.aggregate(avg_rating=Avg('rating'))['avg_rating'] or 0
+
+# Updated Rating Model
+class Rating(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='ratings')
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='ratings')
+    rating = models.DecimalField(
+        max_digits=3,
+        decimal_places=1,
+        validators=[
+             MinValueValidator(Decimal('0.0')),
+            MaxValueValidator(Decimal('5.0'))
+        ],
+        default=1.0
+    )  # Supports ratings like 4.5
+    comment = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'course')  # Ensure a user rates a course only once
+
+    def __str__(self):
+        return f"{self.user.username} - {self.course.title}: {self.rating} stars"
+
+    def clean(self):
+        # Check if the user is enrolled in the course
+        is_enrolled = Enrollment.objects.filter(student=self.user, course=self.course).exists()
+        if not is_enrolled:
+            raise ValidationError("User must be enrolled in the course to leave a rating.")
+
+    def save(self, *args, **kwargs):
+        self.clean()  # Call the validation check before saving
+        super().save(*args, **kwargs)
+
+# Enrollment Model
+class Enrollment(models.Model):
+    student = models.ForeignKey(User, on_delete=models.CASCADE)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    date_enrolled = models.DateTimeField(auto_now_add=True)
+    progress = models.FloatField(default=0.0)
+    completed = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.student.username} - {self.course.title}"
+
+# Signal to Update Student Count
+@receiver(post_save, sender=Enrollment)
+def update_student_count_on_enrollment(sender, instance, created, **kwargs):
+    if created:
+        instance.course.student_count = Enrollment.objects.filter(course=instance.course).count()
+        instance.course.save()
+
+@receiver(post_delete, sender=Enrollment)
+def update_student_count_on_unenrollment(sender, instance, **kwargs):
+    instance.course.student_count = Enrollment.objects.filter(course=instance.course).count()
+    instance.course.save()
+
 
 class Lesson(models.Model):
     title = models.CharField(max_length=255)
@@ -162,16 +249,6 @@ class Question(models.Model):
 
     def __str__(self):
         return self.question_text
-
-class Enrollment(models.Model):
-    student = models.ForeignKey(User, on_delete=models.CASCADE)
-    course = models.ForeignKey(Course, on_delete=models.CASCADE)
-    date_enrolled = models.DateTimeField(auto_now_add=True)
-    progress = models.FloatField(default=0.0)
-    completed = models.BooleanField(default=False)
-
-    def __str__(self):
-        return f"{self.student.username} - {self.course.title}"
 
 class Submission(models.Model):
     student = models.ForeignKey(User, on_delete=models.CASCADE)
