@@ -1,28 +1,92 @@
 from rest_framework import serializers
 from core.models import Course, Category, Rating
+from django.db.models import Avg
 
 class RatingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rating
-        fields = ['id', 'user', 'course', 'rating', 'comment']
+        fields = ['id', 'user', 'course', 'rating', 'comment', 'created_at']
         read_only_fields = ['user', 'course', 'created_at']
 
+    def validate_rating(self, value):
+        """Validate rating is within acceptable range"""
+        if not (1 <= value <= 5):
+            raise serializers.ValidationError("Rating must be between 1 and 5")
+        return value
+
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'description']
+
+    def validate_name(self, value):
+        """Ensure category name is unique (case-insensitive)"""
+        if Category.objects.filter(name__iexact=value).exists():
+            raise serializers.ValidationError("A category with this name already exists")
+        return value
 
 class CourseSerializer(serializers.ModelSerializer):
-    category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
-    ratings = RatingSerializer(many=True, read_only=True)  # Nested ratings field if required
-    average_rating = serializers.SerializerMethodField()  # For displaying the average rating
+    ratings = RatingSerializer(many=True, read_only=True)
+    average_rating = serializers.SerializerMethodField()
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.all(),
+        required=True
+    )
 
     class Meta:
         model = Course
-        fields = ['id', 'title', 'description', 'category', 'price', 'image', 'instructor', 'created_at', 'updated_at', 'ratings', 'average_rating']
-        read_only_fields = ['instructor', 'created_at', 'updated_at', 'ratings', 'average_rating', 'student_count']
+        fields = [
+            'id', 'title', 'description', 'category',
+            'price', 'image', 'instructor', 'created_at', 'updated_at',
+            'ratings', 'average_rating'
+        ]
+        read_only_fields = ['instructor', 'created_at', 'updated_at', 'ratings', 'average_rating']
+
+    def validate_price(self, value):
+        """Validate price is non-negative"""
+        if value < 0:
+            raise serializers.ValidationError("Price cannot be negative")
+        return value
+
+    def validate_title(self, value):
+        """Validate course title length and uniqueness"""
+        if len(value) < 5:
+            raise serializers.ValidationError("Course title must be at least 5 characters long")
+
+        # Check for duplicate titles (case-insensitive)
+        instance = getattr(self, 'instance', None)
+        if instance:
+            # Exclude current instance when updating
+            exists = Course.objects.filter(title__iexact=value).exclude(id=instance.id).exists()
+        else:
+            exists = Course.objects.filter(title__iexact=value).exists()
+
+        if exists:
+            raise serializers.ValidationError("A course with this title already exists")
+        return value
 
     def get_average_rating(self, obj):
-        """
-        Calculate the average rating for the course.
-        """
-        ratings = obj.ratings.all()
-        if ratings:
-            return sum(rating.rating for rating in ratings) / len(ratings)
-        return 0  # Default to 0 if no ratings exist
+        """Calculate the average rating for the course"""
+        avg = obj.ratings.aggregate(average=Avg('rating')).get('average', 0)
+        return round(avg, 2) if avg else 0
+
+    def create(self, validated_data):
+        """Create a new course with proper category handling"""
+        category = validated_data.get('category')
+        if not category:
+            raise serializers.ValidationError({"category": "Category is required"})
+
+        return Course.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        """Update course with proper category handling"""
+        category = validated_data.get('category')
+        if category:
+            instance.category = category
+
+        for attr, value in validated_data.items():
+            if attr != 'category':
+                setattr(instance, attr, value)
+
+        instance.save()
+        return instance

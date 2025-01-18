@@ -1,13 +1,15 @@
-from rest_framework import viewsets, serializers, mixins
+from jsonschema import ValidationError
+from rest_framework import viewsets, serializers, mixins, filters
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import PermissionDenied, Throttled
 from core.models import Course, Enrollment, Rating, Category
-from .serializers import CourseSerializer, RatingSerializer
+from .serializers import CategorySerializer, CourseSerializer, RatingSerializer
 from django_ratelimit.decorators import ratelimit
 from django.utils.decorators import method_decorator
 import re
 import bleach
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse, OpenApiParameter, OpenApiExample
 
 
 def sanitize_course_description(description):
@@ -87,78 +89,158 @@ def validate_sql_injection(value):
 @method_decorator(ratelimit(key='ip', rate='5/m', method='ALL'), name='dispatch')
 class CourseViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for listing, creating, updating, and deleting courses.
+    ViewSet for handling course operations with advanced filtering and search capabilities.
     """
-    queryset = Course.objects.all()
     serializer_class = CourseSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['title', 'description']
+    filterset_fields = ['category', 'instructor']
+    ordering_fields = ['created_at', 'price', 'title']
+    ordering = ['-created_at']
 
-    def handle_no_permission(self):
-        if getattr(self, 'ratelimit_reached', False):
-            raise Throttled()
-        return super().handle_no_permission()
+    def get_queryset(self):
+        queryset = Course.objects.all().select_related('category', 'instructor')
+
+        # Price range filtering
+        min_price = self.request.query_params.get('min_price')
+        max_price = self.request.query_params.get('max_price')
+
+        if min_price is not None:
+            queryset = queryset.filter(price__gte=float(min_price))
+        if max_price is not None:
+            queryset = queryset.filter(price__lte=float(max_price))
+
+        return queryset
 
     def get_permissions(self):
         """
         Return appropriate permissions based on the action.
         """
-        if self.action == 'list' or self.action == 'retrieve':
-            return [AllowAny()]  # Allow everyone to list courses
-        if self.action in ['create', 'update', 'destroy']:
-            return [IsAuthenticated()]  # Require authentication for other actions
-        return super().get_permissions()
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    def handle_no_permission(self):
+        if getattr(self, 'ratelimit_reached', False):
+            raise Throttled(detail="Rate limit exceeded. Please try again later.")
+        return super().handle_no_permission()
 
     def perform_create(self, serializer):
         user = self.request.user
-        if getattr(user, 'role', None) != 'Instructor':
+        if not user.is_authenticated or getattr(user, 'role', None) != 'Instructor':
             raise PermissionDenied("Only instructors can create courses.")
 
-        # Validate instructor and title for SQL injection
+        # Validate and sanitize input
         instructor = self.request.data.get('instructor', '')
         title = self.request.data.get('title', '')
         validate_sql_injection(instructor)
         validate_sql_injection(title)
 
-        # Sanitize course description
         description = self.request.data.get('description', '')
         sanitized_description = sanitize_course_description(description)
 
-        category_name = self.request.data.get('category', '')
-        if not category_name:
-            raise PermissionDenied("Category is required.")
-        category, created = Category.objects.get_or_create(name=category_name)
+        try:
+            serializer.save(
+                description=sanitized_description,
+                instructor=user
+            )
+        except Exception as e:
+            raise ValidationError(f"Failed to create course: {str(e)}")
 
-        # Save course with sanitized data and validated category
-        serializer.save(description=sanitized_description, instructor=user, category=category)
+
+@extend_schema_view(
+    list=extend_schema(
+        description="Retrieve the list of categories.",
+        responses={200: CategorySerializer(many=True)},
+        tags=["Category"],
+    ),
+    retrieve=extend_schema(
+        description="Retrieve a specific category by ID.",
+        responses={200: CategorySerializer},
+        tags=["Category"],
+    ),
+    create=extend_schema(
+        description="Create a new category. Only available for instructors.",
+        responses={201: CategorySerializer},
+        request=CategorySerializer,
+        tags=["Category"],
+    ),
+    update=extend_schema(
+        description="Update an existing category. Only available for instructors.",
+        responses={200: CategorySerializer},
+        request=CategorySerializer,
+        tags=["Category"],
+    ),
+    partial_update=extend_schema(
+        description="Partially update an existing category. Only available for instructors.",
+        responses={200: CategorySerializer},
+        request=CategorySerializer,
+        tags=["Category"],
+    ),
+    destroy=extend_schema(
+        description="Delete a category. Only available for instructors.",
+        responses={204: OpenApiResponse(description="No Content")},
+        tags=["Category"],
+    )
+)
+class CategoryViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for category management with caching and validation.
+    """
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name']
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        if not self.request.user.is_authenticated or self.request.user.role != 'Instructor':
+            raise PermissionDenied("Only instructors can create categories.")
+        serializer.save()
+
+    def perform_update(self, serializer):
+        if not self.request.user.is_authenticated or self.request.user.role != 'Instructor':
+            raise PermissionDenied("Only instructors can update categories.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if not self.request.user.is_authenticated or self.request.user.role != 'Instructor':
+            raise PermissionDenied("Only instructors can delete categories.")
+        instance.delete()
 
 
 @extend_schema_view(
     list=extend_schema(
         description="List all ratings for a specific course.",
         responses={200: RatingSerializer(many=True)},  # List of ratings
-        tags=["rating"],
+        tags=["Rating"],
     ),
     create=extend_schema(
         description="Create a new rating for a specific course.",
         request=RatingSerializer,
         responses={201: RatingSerializer},  # Response after creating a rating
-        tags=["rating"],
+        tags=["Rating"],
     ),
     retrieve=extend_schema(
         description="Retrieve a specific rating for a course.",
         responses={200: RatingSerializer},  # Response with rating details
-        tags=["rating"],
+        tags=["Rating"],
     ),
     update=extend_schema(
         description="Update your rating for a specific course.",
         request=RatingSerializer,
         responses={200: RatingSerializer},  # Updated rating response
-        tags=["rating"],
+        tags=["Rating"],
     ),
     partial_update=extend_schema(
         description="Partially update your rating for a specific course.",
         request=RatingSerializer,
         responses={200: RatingSerializer},  # Updated rating response
-        tags=["rating"],
+        tags=["Rating"],
     ),
 )
 class RatingViewSet(mixins.CreateModelMixin,
