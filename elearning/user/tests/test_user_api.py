@@ -9,13 +9,18 @@ from core.models import User
 # Define constants for API endpoints
 REGISTER_USER_URL = reverse('user:register')
 LOGIN_USER_URL = reverse('user:login')
-USER_PROFILE_URL = reverse('user:profile')
-CHANGE_PASSWORD_URL = reverse('user:change-password')
 LOGOUT_URL = reverse('user:logout')
 
 # Define valid roles
 VALID_ROLES = ['Student', 'Admin', 'Instructor']
 
+def profile_url(userPk=None):
+    """Return user profile URL."""
+    return reverse('user:profile', args=[userPk]) if userPk else reverse('user:profile')
+
+def password_change_url(userPk=None):
+    """Return password change URL."""
+    return reverse('user:change-password', args=[userPk]) if userPk else reverse('user:change-password')
 
 def create_user(**params):
     """Helper function to create a new user."""
@@ -143,7 +148,8 @@ class PrivateUserApiTests(TestCase):
 
     def test_retrieve_user_profile_success(self):
         """Test retrieving authenticated user's profile."""
-        res = self.client.get(USER_PROFILE_URL)
+        url = url = profile_url(self.user.id)
+        res = self.client.get(url)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data['email'], self.user.email)
         self.assertEqual(res.data['username'], self.user.username)
@@ -151,7 +157,8 @@ class PrivateUserApiTests(TestCase):
     def test_update_user_profile_success(self):
         """Test updating the authenticated user's profile."""
         payload = {'first_name': 'Jane', 'last_name': 'Smith'}
-        res = self.client.patch(USER_PROFILE_URL, payload)
+        url = profile_url(userPk=self.user.id)
+        res = self.client.patch(url, payload)
         self.user.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
@@ -163,7 +170,8 @@ class PrivateUserApiTests(TestCase):
             'new_password': 'newpassword123',
             'new_password_confirm': 'newpassword123'
         }
-        res = self.client.post(CHANGE_PASSWORD_URL, payload)
+        url = password_change_url(userPk=self.user.id)
+        res = self.client.post(url, payload)
         self.user.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertTrue(self.user.check_password(payload['new_password']))
@@ -176,7 +184,8 @@ class PrivateUserApiTests(TestCase):
 
     def test_delete_user_success(self):
         """Test deleting the authenticated user."""
-        res = self.client.delete(USER_PROFILE_URL)
+        url =profile_url(userPk=self.user.id)
+        res = self.client.delete(url)
         self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(get_user_model().objects.filter(id=self.user.id).exists())
 
