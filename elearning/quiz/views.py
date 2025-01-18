@@ -150,6 +150,24 @@ class IsStudentUser(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.role == 'Student'
 
+
+@extend_schema_view(
+    create=extend_schema(
+        summary="Create a new quiz submission",
+        description="This endpoint allows a student to submit their answers to a quiz and get a score.",
+        tags=['submission']
+    ),
+    list=extend_schema(
+        summary="List all quiz submissions",
+        description="This endpoint allows students to list all their submissions for a specific quiz.",
+        tags=['submission']
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a specific quiz submission",
+        description="This endpoint allows a student to retrieve their specific submission for a quiz.",
+        tags=['submission']
+    ),
+)
 class SubmissionViewSet(mixins.CreateModelMixin,
                        mixins.ListModelMixin,
                        mixins.RetrieveModelMixin,
