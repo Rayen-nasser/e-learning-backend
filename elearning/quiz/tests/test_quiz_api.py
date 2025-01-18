@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APIClient
 from rest_framework import status
-from core.models import Course, Lesson, Quiz, Question
+from core.models import Category, Course, Lesson, Quiz, Question
 
 
 def create_user(**params):
@@ -51,12 +51,16 @@ class QuizAndQuestionTests(TestCase):
             role='Instructor'
         )
         self.client.force_authenticate(self.instructor)
+        self.category = Category.objects.create(
+            name='Test Category',
+            description='Test Category Description'
+        )
         self.course = Course.objects.create(
             title='Test Course',
             description='Test Description',
             instructor=self.instructor,
             price=99.99,
-            category='Test Category'
+            category=self.category
         )
         self.lesson = Lesson.objects.create(
             title='Test Lesson',

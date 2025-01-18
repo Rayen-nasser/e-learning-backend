@@ -3,7 +3,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from django.contrib.auth import get_user_model
-from core.models import Course, Enrollment
+from core.models import Category, Course, Enrollment
 from decimal import Decimal
 
 User = get_user_model()
@@ -24,11 +24,17 @@ class EnrollmentAPITests(APITestCase):
             role='Instructor'
         )
 
+        # Create a test category
+        self.category = Category.objects.create(
+            name='Test Category',
+            description='Test Category Description'
+        )
+
         # Create a test course
         self.course = Course.objects.create(
             title='Test Course',
             description='Test Description',
-            category='Test Category',
+            category=self.category,
             price=Decimal('99.99'),
             instructor=self.instructor
         )
@@ -46,7 +52,6 @@ class EnrollmentAPITests(APITestCase):
 
     def test_list_enrollments_student(self):
         """Test that students can only see their own enrollments"""
-        # TODO:must be retrieve only courses that student enrollments in it add more test to know that
         self.client.force_authenticate(user=self.student)
         url = reverse('course:courses-enrollments-list', kwargs={'course_pk': self.course.id})
         response = self.client.get(url)
@@ -185,7 +190,7 @@ class EnrollmentAPITests(APITestCase):
         course2 = Course.objects.create(
             title='Test Course 2',
             description='Test Description 2',
-            category='Test Category',
+            category=self.category,
             price=Decimal('99.99'),
             instructor=self.instructor
         )
@@ -193,13 +198,13 @@ class EnrollmentAPITests(APITestCase):
         course3 = Course.objects.create(
             title='Test Course 3',
             description='Test Description 3',
-            category='Test Category',
+            category=self.category,
             price=Decimal('99.99'),
             instructor=self.instructor
         )
 
         # Create additional enrollment for the student
-        enrollment2 = Enrollment.objects.create(
+        Enrollment.objects.create(
             student=self.student,
             course=course2,
             progress=0.0,
@@ -240,11 +245,17 @@ class EnrollmentAPITests(APITestCase):
             role='Instructor'
         )
 
+        # Create another category
+        other_category = Category.objects.create(
+            name='Other Test Category',
+            description='Other Test Category Description'
+        )
+
         # Create a course for the other instructor
         other_course = Course.objects.create(
             title='Other Course',
             description='Other Description',
-            category='Test Category',
+            category=other_category,
             price=Decimal('99.99'),
             instructor=other_instructor
         )

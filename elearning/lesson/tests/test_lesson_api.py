@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIClient
 from rest_framework import status
-from core.models import Course, Lesson, LessonFile
+from core.models import Category, Course, Lesson, LessonFile
 from lesson.serializers import LessonSerializer
 from unittest.mock import MagicMock
 from datetime import timedelta
@@ -51,12 +51,16 @@ class PublicLessonApiTests(TestCase):
             email='instructor@example.com',
             role='Instructor'
         )
+        self.category = Category.objects.create(
+            name='Test Category',
+            description='Test Category Description',
+        )
         self.course = Course.objects.create(
             title='Test Course',
             description='Test Description',
             instructor=self.instructor,
             price=99.99,
-            category='Test Category'
+            category=self.category
         )
         self.LESSON_URL = get_lesson_list_url(self.course.id)
 
@@ -90,7 +94,10 @@ class PrivateLessonApiTests(TestCase):
             email='student@example.com',
             role='Student'
         )
-        self.category = 'Test Category'
+        self.category = Category.objects.create(
+            name='Test Category',
+            description='Test Category Description',
+        )
         self.course = Course.objects.create(
             title='Test Course',
             description='Test Description',
