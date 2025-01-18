@@ -77,8 +77,13 @@ class PublicCourseApiTests(TestCase):
         courses = Course.objects.all()
         serializer = CourseSerializer(courses, many=True)
 
+        # Sort both the response data and the serializer data by 'id' to compare them
+        sorted_response_data = sorted(response.data, key=lambda x: x['id'])
+        sorted_serializer_data = sorted(serializer.data, key=lambda x: x['id'])
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, serializer.data)
+        self.assertEqual(sorted_response_data, sorted_serializer_data)
+
 
     def test_unauthorized_user_cannot_create_course(self):
         """Test that unauthenticated users cannot create a course."""
