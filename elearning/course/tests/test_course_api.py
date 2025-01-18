@@ -174,7 +174,9 @@ class PrivateCourseApiTests(TestCase):
         serializer = CourseSerializer(courses, many=True)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, serializer.data)
+        sorted_response_data = sorted(response.data, key=lambda x: x['id'])
+        sorted_serializer_data = sorted(serializer.data, key=lambda x: x['id'])
+        self.assertEqual(sorted_response_data, sorted_serializer_data)
 
     def test_get_course_by_id(self):
         """Test retrieving a course by ID."""
