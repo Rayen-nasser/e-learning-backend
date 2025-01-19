@@ -95,7 +95,7 @@ class CourseViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'description']
     filterset_fields = ['category', 'instructor']
-    ordering_fields = ['created_at', 'price', 'title']
+    ordering_fields = ['created_at', 'price', 'title', 'student_count']
     ordering = ['-created_at']
 
     def get_queryset(self):

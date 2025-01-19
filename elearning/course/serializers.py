@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from core.models import Course, Category, Rating
 from django.db.models import Avg
+from user.serializers import UserSerializer
 
 class RatingSerializer(serializers.ModelSerializer):
     class Meta:
@@ -31,16 +32,16 @@ class CourseSerializer(serializers.ModelSerializer):
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(),
         required=True
-    )
+    )  # Use PrimaryKeyRelatedField for incoming requests (create/update)
+    instructor = UserSerializer(read_only=True)  # Use UserSerializer for detailed instructor info
 
     class Meta:
         model = Course
         fields = [
-            'id', 'title', 'description', 'category',
-            'price', 'image', 'instructor', 'created_at', 'updated_at',
-            'ratings', 'average_rating'
+            'id', 'title', 'description', 'category', 'price', 'image', 'instructor', 'created_at', 'updated_at',
+            'ratings', 'average_rating', 'student_count'
         ]
-        read_only_fields = ['instructor', 'created_at', 'updated_at', 'ratings', 'average_rating']
+        read_only_fields = ['instructor', 'created_at', 'updated_at', 'ratings', 'average_rating', 'student_count']
 
     def validate_price(self, value):
         """Validate price is non-negative"""
@@ -90,3 +91,14 @@ class CourseSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+
+    def to_representation(self, instance):
+        """Modify the response to include category_detail instead of category"""
+        representation = super().to_representation(instance)
+        # Replace 'category' field with 'category_detail' containing detailed category info
+        category = representation.get('category')
+        if category:
+            category_instance = Category.objects.get(id=category)
+            category_detail = CategorySerializer(category_instance).data
+            representation['category'] = category_detail
+        return representation
