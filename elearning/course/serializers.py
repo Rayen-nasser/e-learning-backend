@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from core.models import Course, Category, Rating
+from core.models import Course, Category, Enrollment, Rating
 from django.db.models import Avg
 from user.serializers import UserSerializer
 
@@ -36,6 +36,7 @@ class CategorySerializer(serializers.ModelSerializer):
 class CourseSerializer(serializers.ModelSerializer):
     ratings = RatingSerializer(many=True, read_only=True)
     average_rating = serializers.SerializerMethodField()
+    student_count = serializers.SerializerMethodField()
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(),
         required=True
@@ -77,6 +78,10 @@ class CourseSerializer(serializers.ModelSerializer):
         """Calculate the average rating for the course"""
         avg = obj.ratings.aggregate(average=Avg('rating')).get('average', 0)
         return round(avg, 2) if avg else 0
+
+    def get_student_count(self, obj):
+        """Get the number of students enrolled in the course."""
+        return Enrollment.objects.filter(course=obj).count()
 
     def create(self, validated_data):
         """Create a new course with proper category handling"""

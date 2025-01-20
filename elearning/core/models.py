@@ -44,7 +44,7 @@ def course_images_upload_path(instance, filename):
     """Generate file path for new profile image"""
     extension = filename.split('.')[-1]
     filename = f"{uuid4()}.{extension}"
-    return os.path.join("courses_image/", filename)
+    return os.path.join("course_images/", filename)
 
 class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
@@ -114,7 +114,6 @@ class Course(models.Model):
         blank=True,
         help_text="Upload a course image (optional)"
     )
-    student_count = models.PositiveIntegerField(default=0, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -160,7 +159,7 @@ class Rating(models.Model):
 # Enrollment Model
 class Enrollment(models.Model):
     student = models.ForeignKey(User, on_delete=models.CASCADE)
-    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    course = models.ForeignKey(Course, related_name='enrollment', on_delete=models.CASCADE)
     date_enrolled = models.DateTimeField(auto_now_add=True)
     progress = models.FloatField(default=0.0)
     completed = models.BooleanField(default=False)

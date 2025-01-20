@@ -10,6 +10,7 @@ from django.utils.decorators import method_decorator
 import re
 import bleach
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse, OpenApiParameter, OpenApiExample
+from django.db.models import Count
 
 
 def sanitize_course_description(description):
@@ -100,6 +101,9 @@ class CourseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = Course.objects.all().select_related('category', 'instructor')
+
+        # Annotate with student_count
+        queryset = queryset.annotate(student_count=Count('enrollment'))
 
         # Price range filtering
         min_price = self.request.query_params.get('min_price')
