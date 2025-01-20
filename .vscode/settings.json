@@ -1,0 +1,33 @@
+{
+  "cSpell.words": ["elearning", "simplejwt", "viewsets"],
+  "cli": [
+    {
+      "freeze_current_environment_dependencies": "pip freeze > requirements.txt",
+      "description": "Generate a `requirements.txt` file with the current environment's dependencies."
+    },
+    {
+      "how_much_commits_today": "git rev-list --count HEAD",
+      "description": "Count the number of commits made in the current branch today."
+    },
+    {
+      "last_commit_message": "git log -1 --pretty=format:'%s'",
+      "description": "Show the commit message of the last commit."
+    },
+    {
+      "last_commit_author": "git log -1 --pretty=format:'%an'",
+      "description": "Show the author of the last commit."
+    },
+    {
+      "install_django_dbreset": "pip install django-dbreset",
+      "description": "Install the `django-dbreset` package to reset the database."
+    },
+    {
+      "reset_database": "python manage.py reset_db",
+      "description": "Delete all tables in the database and reset the schema (useful for development)."
+    },
+    {
+      "run_migrations": "python manage.py migrate",
+      "description": "Apply all pending database migrations."
+    }
+  ]
+}

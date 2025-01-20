@@ -16,15 +16,22 @@ class RatingSerializer(serializers.ModelSerializer):
         return value
 
 class CategorySerializer(serializers.ModelSerializer):
+    course_count = serializers.SerializerMethodField()
+
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description']
+        fields = ['id', 'name', 'description', 'course_count']
 
     def validate_name(self, value):
         """Ensure category name is unique (case-insensitive)"""
         if Category.objects.filter(name__iexact=value).exists():
             raise serializers.ValidationError("A category with this name already exists")
         return value
+
+    def get_course_count(self, obj):
+        """Get the count of courses associated with the category"""
+        return Course.objects.filter(category=obj).count()
+
 
 class CourseSerializer(serializers.ModelSerializer):
     ratings = RatingSerializer(many=True, read_only=True)
