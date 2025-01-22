@@ -100,12 +100,21 @@ class Category(models.Model):
     def __str__(self):
         return self.name
 
-# Updated Course Model
+
+class Level(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+
 class Course(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField()
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name="courses")
     price = models.DecimalField(max_digits=8, decimal_places=2)
+    level = models.ForeignKey(Level, on_delete=models.SET_NULL, null=True, blank=True, related_name="courses")
     instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="courses")
     image = models.ImageField(
         upload_to=course_images_upload_path,
@@ -120,9 +129,10 @@ class Course(models.Model):
     def __str__(self):
         return self.title
 
-    @property
-    def average_rating(self):
-        return self.ratings.aggregate(avg_rating=Avg('rating'))['avg_rating'] or 0
+    def update_average_rating(self):
+        # Cache average rating
+        self.average_rating_cached = self.ratings.aggregate(avg_rating=Avg('rating'))['avg_rating'] or 0
+        self.save()
 
 # Updated Rating Model
 class Rating(models.Model):
@@ -168,16 +178,11 @@ class Enrollment(models.Model):
         return f"{self.student.username} - {self.course.title}"
 
 # Signal to Update Student Count
-@receiver(post_save, sender=Enrollment)
-def update_student_count_on_enrollment(sender, instance, created, **kwargs):
-    if created:
-        instance.course.student_count = Enrollment.objects.filter(course=instance.course).count()
-        instance.course.save()
-
-@receiver(post_delete, sender=Enrollment)
-def update_student_count_on_unenrollment(sender, instance, **kwargs):
-    instance.course.student_count = Enrollment.objects.filter(course=instance.course).count()
-    instance.course.save()
+@receiver(post_save, sender=Rating)
+@receiver(post_delete, sender=Rating)
+def update_course_average_rating(sender, instance, **kwargs):
+    course = instance.course
+    course.update_average_rating()
 
 
 class Lesson(models.Model):
