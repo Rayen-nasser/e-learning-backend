@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_nested.routers import NestedDefaultRouter
-from .views import CourseViewSet, RatingViewSet, CategoryViewSet
+from .views import CourseViewSet, LevelViewSet, RatingViewSet, CategoryViewSet
 from lesson.views import LessonFileViewSet, LessonViewSet
 from enrollment.views import EnrollmentViewSet
 
@@ -13,6 +13,9 @@ router.register(r'courses', CourseViewSet, basename='course')
 
 # router for category
 router.register(r'categories', CategoryViewSet, basename='category')
+
+# router for level
+router.register(r'levels', LevelViewSet, basename='level')
 
 # Nested router for lessons under courses
 courses_router = NestedDefaultRouter(router, r'courses', lookup='course')
