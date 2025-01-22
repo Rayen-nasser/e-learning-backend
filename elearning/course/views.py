@@ -3,15 +3,15 @@ from rest_framework import viewsets, serializers, mixins, filters
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import PermissionDenied, Throttled
-from core.models import Course, Enrollment, Rating, Category
-from .serializers import CategorySerializer, CourseSerializer, RatingSerializer
+from core.models import Course, Enrollment, Level, Rating, Category
+from .serializers import CategorySerializer, CourseSerializer, LevelSerializer, RatingSerializer
 from django_ratelimit.decorators import ratelimit
 from django.utils.decorators import method_decorator
 import re
 import bleach
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse, OpenApiParameter, OpenApiExample
-from django.db.models import Count
-
+from django.db.models import Count, Avg, Q
+from django.conf import settings
 
 def sanitize_course_description(description):
     """
@@ -34,7 +34,15 @@ def validate_sql_injection(value):
     list=extend_schema(
         description="Retrieve a list of all available courses.",
         parameters=[
-            OpenApiParameter(name='search', type=str, description="Search for courses by title."),
+             OpenApiParameter(name='search', type=str, description="Search for courses by title, description or instructor name."),
+             OpenApiParameter(name='level', type=str, description="Filter by level name (e.g., 'beginner', 'intermediate')."),
+            OpenApiParameter(name='min_price', type=float, description="Minimum price of the course"),
+            OpenApiParameter(name='max_price', type=float, description="Maximum price of the course"),
+            OpenApiParameter(name='category', type=int, description="Filter by category ID"),
+            OpenApiParameter(name='category_name', type=str, description="Filter by category name"),
+             OpenApiParameter(name='instructor', type=int, description="Filter by instructor ID"),
+            OpenApiParameter(name='min_rating', type=float, description="Filter courses with a minimum average rating."),
+            OpenApiParameter(name='ordering', type=str, description="Order by fields such as 'created_at', 'price', 'title', 'student_count', 'average_rating', prepended with '-' for descending order e.g '-price'."),
         ],
         responses={200: CourseSerializer(many=True)},
         examples=[
@@ -56,24 +64,24 @@ def validate_sql_injection(value):
                 ],
             )
         ],
-        tags=["Course"],  # Tags applied here
+        tags=["Course"],
     ),
     retrieve=extend_schema(
         description="Retrieve detailed information about a specific course.",
         responses={200: CourseSerializer},
-        tags=["Course"],  # Tags applied here
+        tags=["Course"],
     ),
     create=extend_schema(
         description="Create a new course. Only instructors are allowed to create courses.",
         request=CourseSerializer,
         responses={201: CourseSerializer},
-        tags=["Course"],  # Tags applied here
+        tags=["Course"],
     ),
     update=extend_schema(
         description="Update an existing course. Only the instructor who created the course can update it.",
         request=CourseSerializer,
         responses={200: CourseSerializer},
-        tags=["Course"],  # Tags applied here
+        tags=["Course"],
     ),
     partial_update=extend_schema(
         description="Partially update an existing course. Only the instructor who created the course can update it.",
@@ -84,7 +92,7 @@ def validate_sql_injection(value):
     destroy=extend_schema(
         description="Delete a course. Only the instructor who created the course can delete it.",
         responses={204: None},
-        tags=["Course"],  # Tags applied here
+        tags=["Course"],
     ),
 )
 @method_decorator(ratelimit(key='ip', rate='5/m', method='ALL'), name='dispatch')
@@ -96,23 +104,62 @@ class CourseViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'description']
     filterset_fields = ['category', 'instructor']
-    ordering_fields = ['created_at', 'price', 'title', 'student_count']
+    ordering_fields = ['created_at', 'price', 'title', 'student_count', 'average_rating']
     ordering = ['-created_at']
 
+    from django.db.models import Q, Count, Avg
+
     def get_queryset(self):
+        # Prefetch related fields for optimization
         queryset = Course.objects.all().select_related('category', 'instructor')
 
-        # Annotate with student_count
+        # Annotate with student_count and average_rating
         queryset = queryset.annotate(student_count=Count('enrollment'))
+        queryset = queryset.annotate(average_rating=Avg('ratings__rating'))  # Correct annotation
 
-        # Price range filtering
+        # Get query parameters
+        search_query = self.request.query_params.get('search', None)
         min_price = self.request.query_params.get('min_price')
         max_price = self.request.query_params.get('max_price')
+        category_name = self.request.query_params.get('category_name')
+        min_rating = self.request.query_params.get('min_rating')
+        level_name = self.request.query_params.get('level', None)
 
+        # Search Logic
+        if search_query:
+            queryset = queryset.filter(
+                Q(title__icontains=search_query) |
+                Q(description__icontains=search_query) |
+                Q(instructor__username__icontains=search_query) |
+                Q(instructor__email__icontains=search_query)
+            )
+
+        # Price Range Filtering
         if min_price is not None:
-            queryset = queryset.filter(price__gte=float(min_price))
+            try:
+                queryset = queryset.filter(price__gte=float(min_price))
+            except ValueError:
+                pass  # Ignore invalid min_price values
         if max_price is not None:
-            queryset = queryset.filter(price__lte=float(max_price))
+            try:
+                queryset = queryset.filter(price__lte=float(max_price))
+            except ValueError:
+                pass  # Ignore invalid max_price values
+
+        # Filter by Category Name
+        if category_name:
+            queryset = queryset.filter(category__name__icontains=category_name)
+
+        # Filter by Minimum Average Rating (after annotation)
+        if min_rating is not None:
+            try:
+                queryset = queryset.filter(average_rating__gte=float(min_rating))  # Correct field name
+            except ValueError:
+                pass  # Ignore invalid min_rating values
+
+        # Filter by Level Name (filtering using level's name)
+        if level_name:
+            queryset = queryset.filter(level__name__iexact=level_name)
 
         return queryset
 
@@ -214,6 +261,70 @@ class CategoryViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         if not self.request.user.is_authenticated or self.request.user.role != 'Instructor':
             raise PermissionDenied("Only instructors can delete categories.")
+        instance.delete()
+
+@extend_schema_view(
+    list=extend_schema(
+        description="Retrieve the list of levels.",
+        responses={200: LevelSerializer(many=True)},
+        tags=["Level"],
+    ),
+    retrieve=extend_schema(
+        description="Retrieve a specific level by ID.",
+        responses={200: LevelSerializer},
+        tags=["Level"],
+    ),
+    create=extend_schema(
+        description="Create a new level. Only available for instructors.",
+        responses={201: LevelSerializer},
+        request=LevelSerializer,
+        tags=["Level"],
+    ),
+    update=extend_schema(
+        description="Update an existing level. Only available for instructors.",
+        responses={200: LevelSerializer},
+        request=LevelSerializer,
+        tags=["Level"],
+    ),
+    partial_update=extend_schema(
+        description="Partially update an existing level. Only available for instructors.",
+        responses={200: LevelSerializer},
+        request=LevelSerializer,
+        tags=["Level"],
+    ),
+    destroy=extend_schema(
+        description="Delete a level. Only available for instructors.",
+        responses={204: OpenApiResponse(description="No Content")},
+        tags=["Level"],
+    )
+)
+class LevelViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for level management with caching and validation.
+    """
+    queryset = Level.objects.all()
+    serializer_class = LevelSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name']  # Assuming 'name' is a field in the Level model
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]  # Anyone can view the list and details
+        return [IsAuthenticated()]  # Authenticated users required for create, update, delete
+
+    def perform_create(self, serializer):
+        if not self.request.user.is_authenticated or self.request.user.role != 'Instructor':
+            raise PermissionDenied("Only instructors can create levels.")
+        serializer.save()
+
+    def perform_update(self, serializer):
+        if not self.request.user.is_authenticated or self.request.user.role != 'Instructor':
+            raise PermissionDenied("Only instructors can update levels.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if not self.request.user.is_authenticated or self.request.user.role != 'Instructor':
+            raise PermissionDenied("Only instructors can delete levels.")
         instance.delete()
 
 
