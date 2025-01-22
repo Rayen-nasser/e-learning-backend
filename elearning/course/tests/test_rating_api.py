@@ -4,7 +4,7 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 from rest_framework import status
 from core.models import Course, Rating, Category, Enrollment
-from course.serializers import RatingSerializer
+from course.serializers import CourseSerializer, RatingSerializer
 from decimal import Decimal
 
 def create_user(**params):
@@ -270,10 +270,10 @@ class PrivateRatingApiTests(TestCase):
         """Test that course average rating is updated when new ratings are created"""
         url = rating_url(self.course.id)
 
-        # Create first rating
+        # Create the first rating
         self.client.post(url, {'rating': 4.0, 'comment': 'Good'})
 
-        # Create second rating from different user
+        # Create the second rating from a different user
         other_student = create_user(
             username='other_student2',
             email='other2@example.com'
@@ -282,7 +282,12 @@ class PrivateRatingApiTests(TestCase):
         self.client.force_authenticate(user=other_student)
         self.client.post(url, {'rating': 5.0, 'comment': 'Excellent'})
 
-        # Check average rating
+        # Refresh the course object from the database
         self.course.refresh_from_db()
-        self.assertEqual(self.course.average_rating, 4.5)
-        self.assertEqual(self.course.student_count, 2)
+
+        # Serialize the updated course object
+        serializer = CourseSerializer(self.course)
+
+        # Assert that the serializer's data reflects the correct average rating
+        self.assertEqual(serializer.data['average_rating'], 4.5)  # Average of 4.0 and 5.0
+        self.assertEqual(serializer.data['student_count'], 2)  # Two students rated the course
