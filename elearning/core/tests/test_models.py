@@ -73,6 +73,10 @@ class CourseAndLessonTests(TestCase):
             name="Test Category",
             description="This is a test category"
         )
+        self.level = models.Level.objects.create(
+            name='Beginner',
+            description='This is a beginner level course'
+        )
         # Create a course and associate it with the category
         self.course = models.Course.objects.create(
             title='Test Course',
@@ -80,6 +84,7 @@ class CourseAndLessonTests(TestCase):
             instructor=self.instructor,
             price=50.00,
             category=self.category,
+            level=self.level,
             image='http://example.com/media/uploads/courses/test_course.jpg'
         )
         self.lesson = models.Lesson.objects.create(
@@ -92,6 +97,11 @@ class CourseAndLessonTests(TestCase):
         """Test that a course is associated with the correct category"""
         self.assertEqual(self.course.category, self.category)
         self.assertEqual(self.category.name, "Test Category")
+
+    def test_course_level(self):
+        """Test that a course is associated with the correct level"""
+        self.assertEqual(self.course.level, self.level)
+        self.assertEqual(self.level.name, 'Beginner')
 
     def test_course_image(self):
         """Test that a course has an associated image"""
