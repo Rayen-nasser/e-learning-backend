@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from core.models import Course, Category, Enrollment, Rating
+from core.models import Course, Category, Enrollment, Level, Rating
 from django.db.models import Avg
 from user.serializers import UserSerializer
 
@@ -33,6 +33,30 @@ class CategorySerializer(serializers.ModelSerializer):
         return Course.objects.filter(category=obj).count()
 
 
+
+class LevelSerializer(serializers.ModelSerializer):
+    courses = serializers.SerializerMethodField()
+    students = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Level
+        fields = ['id', 'name', 'description', 'courses', 'students']
+
+    def validate_name(self, value):
+        """Ensure level name is unique (case-insensitive)."""
+        if Level.objects.filter(name__iexact=value).exists():
+            raise serializers.ValidationError("A level with this name already exists.")
+        return value
+
+    def get_courses(self, obj):
+        """Get the count of courses associated with the level."""
+        return obj.courses.count()
+
+    def get_students(self, obj):
+        """Get the count of unique students associated with all courses of this level."""
+        return Enrollment.objects.filter(course__level=obj).values('student').distinct().count()
+
+
 class CourseSerializer(serializers.ModelSerializer):
     ratings = RatingSerializer(many=True, read_only=True)
     average_rating = serializers.SerializerMethodField()
@@ -42,14 +66,15 @@ class CourseSerializer(serializers.ModelSerializer):
         required=True
     )  # Use PrimaryKeyRelatedField for incoming requests (create/update)
     instructor = UserSerializer(read_only=True)  # Use UserSerializer for detailed instructor info
+    level = LevelSerializer(read_only=True) # Use LevelSerializer for detailed level info
 
     class Meta:
         model = Course
         fields = [
             'id', 'title', 'description', 'category', 'price', 'image', 'instructor', 'created_at', 'updated_at',
-            'ratings', 'average_rating', 'student_count'
+            'ratings', 'level', 'average_rating', 'student_count'
         ]
-        read_only_fields = ['instructor', 'created_at', 'updated_at', 'ratings', 'average_rating', 'student_count']
+        read_only_fields = ['instructor', 'level', 'created_at', 'updated_at', 'ratings', 'average_rating', 'student_count']
 
     def validate_price(self, value):
         """Validate price is non-negative"""
