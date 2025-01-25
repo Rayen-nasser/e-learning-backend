@@ -4,6 +4,7 @@ from django.db.models import Avg
 from user.serializers import UserSerializer
 
 class RatingSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
     class Meta:
         model = Rating
         fields = ['id', 'user', 'course', 'rating', 'comment', 'created_at']
