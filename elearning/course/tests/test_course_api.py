@@ -77,13 +77,17 @@ class PublicCourseApiTests(TestCase):
         courses = Course.objects.all()
         serializer = CourseSerializer(courses, many=True)
 
-        # Sort both the response data and the serializer data by 'id' to compare them
-        sorted_response_data = sorted(response.data, key=lambda x: x['id'])
+        # Check if response is paginated (contains 'results' key)
+        if 'results' in response.data:
+            sorted_response_data = sorted(response.data['results'], key=lambda x: x['id'])
+        else:
+            sorted_response_data = sorted(response.data, key=lambda x: x['id'])
+
+        # Compare the sorted data with the serializer data
         sorted_serializer_data = sorted(serializer.data, key=lambda x: x['id'])
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(sorted_response_data, sorted_serializer_data)
-
 
     def test_unauthorized_user_cannot_create_course(self):
         """Test that unauthenticated users cannot create a course."""
@@ -166,17 +170,34 @@ class PrivateCourseApiTests(TestCase):
 
     def test_retrieve_courses(self):
         """Test retrieving a list of courses for the authenticated user."""
+        # Create two courses associated with the authenticated user and category
         create_course(self.user, self.category)
         create_course(self.user, self.category, title='Another Course')
 
+        # Send a GET request to the COURSE_URL
         response = self.client.get(COURSE_URL)
+
+        # Filter courses that belong to the authenticated user
         courses = Course.objects.filter(instructor=self.user)
+
+        # Serialize the courses data
         serializer = CourseSerializer(courses, many=True)
 
+        # Assert the response status is 200 OK
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        sorted_response_data = sorted(response.data, key=lambda x: x['id'])
+
+        # Check if response is paginated (contains 'results' key)
+        if 'results' in response.data:
+            sorted_response_data = sorted(response.data['results'], key=lambda x: x['id'])
+        else:
+            sorted_response_data = sorted(response.data, key=lambda x: x['id'])
+
+        # Sort the serialized course data
         sorted_serializer_data = sorted(serializer.data, key=lambda x: x['id'])
+
+        # Compare the sorted response data with the serialized data
         self.assertEqual(sorted_response_data, sorted_serializer_data)
+
 
     def test_get_course_by_id(self):
         """Test retrieving a course by ID."""

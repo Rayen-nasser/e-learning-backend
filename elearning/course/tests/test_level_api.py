@@ -75,7 +75,7 @@ class LevelAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Check the student count in the response
-        self.assertEqual(response.data['student_count'], 2)
+        self.assertEqual(response.data['students'], 2)
 
     def test_create_level_as_instructor(self):
         """Test creating a level as an instructor."""
@@ -120,4 +120,4 @@ class LevelAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Only one student is enrolled in level2 courses
-        self.assertEqual(response.data['student_count'], 1)
+        self.assertEqual(response.data['students'], 1)
