@@ -4,6 +4,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import PermissionDenied, Throttled
 from core.models import Course, Enrollment, Level, Rating, Category
+from course.pagination import CoursePagination
 from .serializers import CategorySerializer, CourseSerializer, LevelSerializer, RatingSerializer
 from django_ratelimit.decorators import ratelimit
 from django.utils.decorators import method_decorator
@@ -11,7 +12,6 @@ import re
 import bleach
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse, OpenApiParameter, OpenApiExample
 from django.db.models import Count, Avg, Q
-from django.conf import settings
 
 def sanitize_course_description(description):
     """
@@ -106,8 +106,8 @@ class CourseViewSet(viewsets.ModelViewSet):
     filterset_fields = ['category', 'instructor']
     ordering_fields = ['created_at', 'price', 'title', 'student_count', 'average_rating']
     ordering = ['-created_at']
+    pagination_class = CoursePagination
 
-    from django.db.models import Q, Count, Avg
 
     def get_queryset(self):
         # Prefetch related fields for optimization
@@ -115,7 +115,7 @@ class CourseViewSet(viewsets.ModelViewSet):
 
         # Annotate with student_count and average_rating
         queryset = queryset.annotate(student_count=Count('enrollment'))
-        queryset = queryset.annotate(average_rating=Avg('ratings__rating'))  # Correct annotation
+        queryset = queryset.annotate(average_rating=Avg('ratings__rating'))
 
         # Get query parameters
         search_query = self.request.query_params.get('search', None)
@@ -148,12 +148,16 @@ class CourseViewSet(viewsets.ModelViewSet):
 
         # Filter by Category Name
         if category_name:
-            queryset = queryset.filter(category__name__icontains=category_name)
+            categories = category_name.split(',')  # Split by comma for multiple categories
+            category_filters = Q()
+            for category in categories:
+                category_filters |= Q(category__name__iexact=category.strip())  # Case-insensitive match
+            queryset = queryset.filter(category_filters)
 
         # Filter by Minimum Average Rating (after annotation)
         if min_rating is not None:
             try:
-                queryset = queryset.filter(average_rating__gte=float(min_rating))  # Correct field name
+                queryset = queryset.filter(average_rating__gte=float(min_rating))
             except ValueError:
                 pass  # Ignore invalid min_rating values
 
