@@ -60,8 +60,8 @@ class LevelSerializer(serializers.ModelSerializer):
 
 class CourseSerializer(serializers.ModelSerializer):
     ratings = RatingSerializer(many=True, read_only=True)
-    average_rating = serializers.SerializerMethodField()
-    student_count = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()  # Keep this for dynamic calculation
+    student_count = serializers.SerializerMethodField()   # Keep this for dynamic calculation
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(),
         required=True
@@ -76,6 +76,31 @@ class CourseSerializer(serializers.ModelSerializer):
             'ratings', 'level', 'average_rating', 'student_count'
         ]
         read_only_fields = ['instructor', 'level', 'created_at', 'ratings', 'average_rating', 'student_count']
+
+    def get_average_rating(self, obj):
+        """
+        Calculate the average rating for the course.
+        If the queryset is annotated with `average_rating`, use that value.
+        Otherwise, calculate it dynamically.
+        """
+        if hasattr(obj, 'average_rating'):
+            # Use the annotated value if available
+            return round(obj.average_rating, 2)
+        # Calculate dynamically if not annotated
+        avg = obj.ratings.aggregate(average=Avg('rating')).get('average', 0)
+        return round(avg, 2) if avg else 0
+
+    def get_student_count(self, obj):
+        """
+        Get the number of students enrolled in the course.
+        If the queryset is annotated with `student_count`, use that value.
+        Otherwise, calculate it dynamically.
+        """
+        if hasattr(obj, 'student_count'):
+            # Use the annotated value if available
+            return obj.student_count
+        # Calculate dynamically if not annotated
+        return Enrollment.objects.filter(course=obj).count()
 
     def validate_price(self, value):
         """Validate price is non-negative"""
@@ -99,36 +124,6 @@ class CourseSerializer(serializers.ModelSerializer):
         if exists:
             raise serializers.ValidationError("A course with this title already exists")
         return value
-
-    def get_average_rating(self, obj):
-        """Calculate the average rating for the course"""
-        avg = obj.ratings.aggregate(average=Avg('rating')).get('average', 0)
-        return round(avg, 2) if avg else 0
-
-    def get_student_count(self, obj):
-        """Get the number of students enrolled in the course."""
-        return Enrollment.objects.filter(course=obj).count()
-
-    def create(self, validated_data):
-        """Create a new course with proper category handling"""
-        category = validated_data.get('category')
-        if not category:
-            raise serializers.ValidationError({"category": "Category is required"})
-
-        return Course.objects.create(**validated_data)
-
-    def update(self, instance, validated_data):
-        """Update course with proper category handling"""
-        category = validated_data.get('category')
-        if category:
-            instance.category = category
-
-        for attr, value in validated_data.items():
-            if attr != 'category':
-                setattr(instance, attr, value)
-
-        instance.save()
-        return instance
 
     def to_representation(self, instance):
         """Modify the response based on the context (list vs. detail view)"""

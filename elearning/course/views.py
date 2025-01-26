@@ -34,15 +34,15 @@ def validate_sql_injection(value):
     list=extend_schema(
         description="Retrieve a list of all available courses.",
         parameters=[
-             OpenApiParameter(name='search', type=str, description="Search for courses by title, description or instructor name."),
-             OpenApiParameter(name='level', type=str, description="Filter by level name (e.g., 'beginner', 'intermediate')."),
-            OpenApiParameter(name='min_price', type=float, description="Minimum price of the course"),
-            OpenApiParameter(name='max_price', type=float, description="Maximum price of the course"),
-            OpenApiParameter(name='category', type=int, description="Filter by category ID"),
-            OpenApiParameter(name='category_name', type=str, description="Filter by category name"),
-             OpenApiParameter(name='instructor', type=int, description="Filter by instructor ID"),
+            OpenApiParameter(name='search', type=str, description="Search for courses by title, description, or instructor name."),
+            OpenApiParameter(name='level', type=str, description="Filter by level name (e.g., 'beginner', 'intermediate')."),
+            OpenApiParameter(name='min_price', type=float, description="Minimum price of the course."),
+            OpenApiParameter(name='max_price', type=float, description="Maximum price of the course."),
+            OpenApiParameter(name='category', type=int, description="Filter by category ID."),
+            OpenApiParameter(name='category_name', type=str, description="Filter by category name."),
+            OpenApiParameter(name='instructor', type=int, description="Filter by instructor ID."),
             OpenApiParameter(name='min_rating', type=float, description="Filter courses with a minimum average rating."),
-            OpenApiParameter(name='ordering', type=str, description="Order by fields such as 'created_at', 'price', 'title', 'student_count', 'average_rating', prepended with '-' for descending order e.g '-price'."),
+            OpenApiParameter(name='ordering', type=str, description="Order by fields such as 'created_at', 'price', 'title', 'student_count', 'average_rating', prepended with '-' for descending order (e.g., '-price')."),
         ],
         responses={200: CourseSerializer(many=True)},
         examples=[
@@ -105,25 +105,41 @@ class CourseViewSet(viewsets.ModelViewSet):
     search_fields = ['title', 'description']
     filterset_fields = ['category', 'instructor']
     ordering_fields = ['created_at', 'price', 'title', 'student_count', 'average_rating']
-    ordering = ['-created_at']
+    # ordering = ['-created_at', ]  # Default ordering (can be overridden by `sort_by`)
     pagination_class = CoursePagination
 
-
     def get_queryset(self):
-        # Prefetch related fields for optimization
-        queryset = Course.objects.all().select_related('category', 'instructor')
+        """
+        Get the queryset for courses with optional filtering, sorting, and annotations.
+        """
+        queryset = self._get_base_queryset()
+        queryset = self._apply_filters(queryset)
+        queryset = self._apply_sorting(queryset)
+        return queryset
 
-        # Annotate with student_count and average_rating
-        queryset = queryset.annotate(student_count=Count('enrollment'))
-        queryset = queryset.annotate(average_rating=Avg('ratings__rating'))
+    def _get_base_queryset(self):
+        """
+        Return the base queryset with prefetching and annotations.
+        """
+        return (
+            Course.objects.all()
+            .select_related('category', 'instructor')
+            .annotate(
+                student_count=Count('enrollment'),
+                average_rating=Avg('ratings__rating')
+            )
+        )
 
-        # Get query parameters
-        search_query = self.request.query_params.get('search', None)
+    def _apply_filters(self, queryset):
+        """
+        Apply filters to the queryset based on query parameters.
+        """
+        search_query = self.request.query_params.get('search')
         min_price = self.request.query_params.get('min_price')
         max_price = self.request.query_params.get('max_price')
         category_name = self.request.query_params.get('category_name')
         min_rating = self.request.query_params.get('min_rating')
-        level_name = self.request.query_params.get('level', None)
+        level_name = self.request.query_params.get('level')
 
         # Search Logic
         if search_query:
@@ -154,16 +170,31 @@ class CourseViewSet(viewsets.ModelViewSet):
                 category_filters |= Q(category__name__iexact=category.strip())  # Case-insensitive match
             queryset = queryset.filter(category_filters)
 
-        # Filter by Minimum Average Rating (after annotation)
+        # Filter by Minimum Average Rating
         if min_rating is not None:
             try:
                 queryset = queryset.filter(average_rating__gte=float(min_rating))
             except ValueError:
                 pass  # Ignore invalid min_rating values
 
-        # Filter by Level Name (filtering using level's name)
+        # Filter by Level Name
         if level_name:
             queryset = queryset.filter(level__name__iexact=level_name)
+
+        return queryset
+
+    def _apply_sorting(self, queryset):
+        """
+        Apply sorting to the queryset based on the `sort_by` query parameter.
+        """
+        sort_by = self.request.query_params.get('sort_by')
+
+        if sort_by == 'most_popular':
+            queryset = queryset.order_by('-student_count')  # Sort by highest student count
+        elif sort_by == 'highest_rated':
+            queryset = queryset.order_by('-average_rating')  # Sort by highest average rating
+        elif sort_by == 'newest':
+            queryset = queryset.order_by('-created_at')  # Sort by most recent creation date
 
         return queryset
 
@@ -176,11 +207,17 @@ class CourseViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def handle_no_permission(self):
+        """
+        Handle cases where the user does not have permission to access the resource.
+        """
         if getattr(self, 'ratelimit_reached', False):
             raise Throttled(detail="Rate limit exceeded. Please try again later.")
         return super().handle_no_permission()
 
     def perform_create(self, serializer):
+        """
+        Create a new course with proper validation and sanitization.
+        """
         user = self.request.user
         if not user.is_authenticated or getattr(user, 'role', None) != 'Instructor':
             raise PermissionDenied("Only instructors can create courses.")
@@ -207,10 +244,8 @@ class CourseViewSet(viewsets.ModelViewSet):
         Add context to indicate whether the request is for a list view or a detail view.
         """
         context = super().get_serializer_context()
-        # Set 'is_list_view' to True for list actions, False for retrieve actions
         context['is_list_view'] = self.action == 'list'
         return context
-
 
 @extend_schema_view(
     list=extend_schema(
