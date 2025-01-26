@@ -91,15 +91,7 @@ class CourseSerializer(serializers.ModelSerializer):
         return round(avg, 2) if avg else 0
 
     def get_student_count(self, obj):
-        """
-        Get the number of students enrolled in the course.
-        If the queryset is annotated with `student_count`, use that value.
-        Otherwise, calculate it dynamically.
-        """
-        if hasattr(obj, 'student_count'):
-            # Use the annotated value if available
-            return obj.student_count
-        # Calculate dynamically if not annotated
+        """Get the number of students enrolled in the course."""
         return Enrollment.objects.filter(course=obj).count()
 
     def validate_price(self, value):
