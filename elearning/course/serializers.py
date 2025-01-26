@@ -65,17 +65,17 @@ class CourseSerializer(serializers.ModelSerializer):
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(),
         required=True
-    )  # Use PrimaryKeyRelatedField for incoming requests (create/update)
-    instructor = UserSerializer(read_only=True)  # Use UserSerializer for detailed instructor info
-    level = LevelSerializer(read_only=True) # Use LevelSerializer for detailed level info
+    )
+    instructor = UserSerializer(read_only=True)
+    level = LevelSerializer(read_only=True)
 
     class Meta:
         model = Course
         fields = [
-            'id', 'title', 'description', 'category', 'price', 'image', 'instructor', 'created_at', 'updated_at',
+            'id', 'title', 'description', 'category', 'price', 'image', 'instructor', 'created_at',
             'ratings', 'level', 'average_rating', 'student_count'
         ]
-        read_only_fields = ['instructor', 'level', 'created_at', 'updated_at', 'ratings', 'average_rating', 'student_count']
+        read_only_fields = ['instructor', 'level', 'created_at', 'ratings', 'average_rating', 'student_count']
 
     def validate_price(self, value):
         """Validate price is non-negative"""
@@ -131,12 +131,35 @@ class CourseSerializer(serializers.ModelSerializer):
         return instance
 
     def to_representation(self, instance):
-        """Modify the response to include category_detail instead of category"""
+        """Modify the response based on the context (list vs. detail view)"""
         representation = super().to_representation(instance)
-        # Replace 'category' field with 'category_detail' containing detailed category info
-        category = representation.get('category')
-        if category:
-            category_instance = Category.objects.get(id=category)
-            category_detail = CategorySerializer(category_instance).data
-            representation['category'] = category_detail
+
+        # Check if the request is for a list view
+        is_list_view = self.context.get('is_list_view', False)
+
+        if is_list_view:
+            # Hide ratings when listing courses
+            if 'ratings' in representation:
+                del representation['ratings']
+
+            # Replace 'category' field with a simplified version (excluding description)
+            category = representation.get('category')
+            if category:
+                category_instance = Category.objects.get(id=category)
+                category_detail = {
+                    'id': category_instance.id,
+                    'name': category_instance.name,
+                    # Exclude 'description' here
+                }
+                representation['category'] = category_detail
+
+            # Hide level details when listing courses
+            if 'level' in representation:
+                del representation['level']
+
+            # Hide instructor email when listing courses
+            instructor = representation.get('instructor')
+            if instructor and 'email' in instructor:
+                del instructor['email']
+
         return representation

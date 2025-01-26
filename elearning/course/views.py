@@ -202,6 +202,15 @@ class CourseViewSet(viewsets.ModelViewSet):
         except Exception as e:
             raise ValidationError(f"Failed to create course: {str(e)}")
 
+    def get_serializer_context(self):
+        """
+        Add context to indicate whether the request is for a list view or a detail view.
+        """
+        context = super().get_serializer_context()
+        # Set 'is_list_view' to True for list actions, False for retrieve actions
+        context['is_list_view'] = self.action == 'list'
+        return context
+
 
 @extend_schema_view(
     list=extend_schema(
