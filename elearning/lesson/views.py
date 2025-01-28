@@ -2,10 +2,10 @@ from rest_framework import viewsets, permissions, serializers, filters
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
-from core.models import Course, Lesson, LessonFile
+from core.models import Course, Enrollment, Lesson, LessonFile
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample, OpenApiTypes
-from .serializers import LessonSerializer, LessonFileSerializer
-from rest_framework.permissions import IsAuthenticated
+from .serializers import LessonListSerializer, LessonSerializer, LessonFileSerializer
+from rest_framework.permissions import IsAuthenticated, AllowAny
 
 
 @extend_schema_view(
@@ -25,7 +25,7 @@ from rest_framework.permissions import IsAuthenticated
                 description="Search lessons by title or description."
             ),
         ],
-        responses={200: LessonSerializer(many=True)},
+        responses={200: LessonListSerializer(many=True)},
         tags=["Lesson"],
     ),
     retrieve=extend_schema(
@@ -123,18 +123,53 @@ from rest_framework.permissions import IsAuthenticated
 )
 class LessonViewSet(viewsets.ModelViewSet):
     queryset = Lesson.objects.all()
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = LessonSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['course']
     search_fields = ['title', 'description']
 
+    def get_permissions(self):
+        """
+        Instantiates and returns the list of permissions that this view requires.
+        """
+        if self.action == 'list':
+            # Allow anyone to list lessons
+            permission_classes = [AllowAny]
+        else:
+            # Require authentication for other actions
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return LessonListSerializer
+        return LessonSerializer
+
     def get_queryset(self):
         course_pk = self.kwargs.get('course_pk')
+        user = self.request.user
+
+        if self.action == 'list':
+            # For listing, return all lessons (public access)
+            if course_pk:
+                return Lesson.objects.filter(course_id=course_pk)
+            return Lesson.objects.all()
+
+        # For other actions, enforce access control
         if not course_pk:
             return Lesson.objects.none()
-        return self.queryset.filter(course_id=course_pk)
 
+        # Check if the user is enrolled in the course or is the course instructor
+        course = Course.objects.filter(id=course_pk).first()
+        if not course:
+            return Lesson.objects.none()
+
+        is_enrolled = Enrollment.objects.filter(student=user, course=course).exists()
+        is_instructor = course.instructor == user
+
+        if not (is_enrolled or is_instructor):
+            return Lesson.objects.none()
+
+        return self.queryset.filter(course_id=course_pk)
 
     def perform_create(self, serializer):
         course_id = self.kwargs.get('course_pk')
@@ -208,8 +243,20 @@ class LessonFileViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         lesson_pk = self.kwargs.get('lesson_pk')
+
         if lesson_pk:
-            return LessonFile.objects.filter(lesson__id=lesson_pk, lesson__course__instructor=user)
+            lesson = Lesson.objects.filter(id=lesson_pk).first()
+            if not lesson:
+                return LessonFile.objects.none()
+
+            # Check if the user is enrolled in the course or is the course instructor
+            is_enrolled = Enrollment.objects.filter(student=user, course=lesson.course).exists()
+            is_instructor = lesson.course.instructor == user
+
+            if not (is_enrolled or is_instructor):
+                return LessonFile.objects.none()
+
+            return LessonFile.objects.filter(lesson__id=lesson_pk)
         return LessonFile.objects.none()
 
     def perform_create(self, serializer):
