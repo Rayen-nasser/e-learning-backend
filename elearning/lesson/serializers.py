@@ -29,6 +29,13 @@ class LessonFileSerializer(serializers.ModelSerializer):
 
         return data
 
+
+class LessonListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Lesson
+        fields = ['id', 'title']
+
+
 class LessonSerializer(serializers.ModelSerializer):
     files = LessonFileSerializer(many=True, read_only=True)  # To include lesson files in the lesson data
 
